@@ -1,0 +1,9 @@
+dbt-adapters==1.24.5
+dbt-bigquery==1.12.0
+dbt-common==1.38.0
+dbt-core==1.12.0
+dbt-core-experimental-parser==2.0.0a5
+dbt-extractor==0.6.0
+dbt-protos==1.0.541
+sqlfluff==3.5.0
+sqlfluff-templater-dbt==3.5.0

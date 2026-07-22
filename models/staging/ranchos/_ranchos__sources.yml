@@ -1,0 +1,64 @@
+version: 2
+
+# Declaración de las tablas fuente reales (el dataset operacional que hoy
+# alimentan las Cloud Functions de ranchos--app). Ver docs/dama_governance.md
+# sección 6 — todo modelo debe referenciar estas tablas vía {{ source(...) }},
+# nunca con el nombre crudo en un FROM.
+#
+# NOTA: este archivo asume que el dataset "ranchos" ya existe en el proyecto
+# BigQuery configurado en ~/.dbt/profiles.yml (alba-analytics-ganaderia).
+# Al momento de crear este archivo ese dataset todavía no existe ahí — ver
+# la conversación sobre estrategia de migración de datos históricos antes
+# de correr `dbt run`/`dbt source freshness` contra sources reales.
+sources:
+  - name: ranchos
+    database: alba-analytics-ganaderia
+    schema: ranchos
+    description: >
+      Dataset operacional de RanchOS — dimensiones y hechos poblados por
+      las Cloud Functions de sync (ver CLAUDE.md de ranchos--app, sección
+      Analítica). Cada fact table versiona históricamente
+      (estado_registro: Activo/Corregido/Anulado) en vez de hacer UPDATE
+      in-place.
+    tables:
+      - name: tb_dim_fincas
+      - name: tb_dim_roles
+      - name: tb_dim_usuarios
+      - name: tb_dim_catalogo_finanzas
+      - name: tb_dim_animales
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_dim_catalogo_veterinarios
+      - name: tb_dim_catalogo_motivos_salida
+      - name: tb_dim_catalogo_medicinas
+      - name: tb_dim_catalogo_motivos_tratamiento
+      - name: tb_fact_transacciones_financieras
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_venta_leche
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_microbiologia_leche
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_composicion_leche
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_logs_actividad
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_partos
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_palpamientos
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_pesaje_leche
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_salidas
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_tratamientos
+        config:
+          loaded_at_field: timestamp_registro

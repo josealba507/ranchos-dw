@@ -1,0 +1,7 @@
+version: 2
+
+# Trazabilidad de lineage hasta el consumidor final (docs/dama_governance.md,
+# sección 6). Cada dashboard/reporte real que consuma un mart debe declararse
+# acá con sus `depends_on` — hoy no hay ninguno conectado todavía, se agrega
+# el primero cuando exista el primer dashboard real sobre estos marts.
+exposures: []

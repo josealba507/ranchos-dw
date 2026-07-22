@@ -1,0 +1,13 @@
+packages:
+  # Macros genéricas de testing (unique_combination_of_columns, equal_rowcount,
+  # etc.) — base para las pruebas de Uniqueness/Consistency de DAMA.
+  - package: dbt-labs/dbt_utils
+    version: [">=1.3.0", "<2.0.0"]
+
+  # Tests declarativos de calidad de datos (not_null_proportion, expect_column
+  # values_to_be_between, etc.) — cubren las dimensiones de Completeness,
+  # Validity y Accuracy de DAMA sin escribir SQL de test a mano.
+  # (calogica/dbt_expectations quedó deprecado en favor de este fork bajo
+  # metaplane — mismo namespace de macros, drop-in replacement.)
+  - package: metaplane/dbt_expectations
+    version: [">=0.10.0", "<0.11.0"]

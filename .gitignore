@@ -1,0 +1,27 @@
+# Entorno virtual de Python — no se versiona, se recrea con
+# `python -m venv .venv` + `pip install -r requirements.txt`.
+.venv/
+__pycache__/
+*.pyc
+
+# Artefactos generados por dbt — se regeneran con `dbt deps`/`dbt run`/`dbt docs`.
+target/
+dbt_packages/
+logs/
+
+# profiles.yml vive en ~/.dbt/profiles.yml (fuera del repo) porque referencia
+# el proyecto GCP y el método de autenticación — nunca debe versionarse un
+# profiles.yml local por accidente si alguna vez se crea uno de prueba acá.
+profiles.yml
+
+# Credenciales — mismo criterio que ranchos--app, nunca subir claves de
+# servicio ni archivos de entorno.
+credenciales.json
+serviceAccountKey.json
+*serviceAccountKey*.json
+.env
+.env.local
+
+# Sistema
+.DS_Store
+Thumbs.db

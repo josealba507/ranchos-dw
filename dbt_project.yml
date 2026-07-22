@@ -1,0 +1,57 @@
+name: 'ranchos_dw'
+version: '1.0.0'
+config-version: 2
+
+profile: 'ranchos_dw'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+  - "logs"
+
+# --- Convenciones DAMA-DMBOK aplicadas a la materialización por capa ---
+# staging     -> view: sin costo de storage, siempre refleja la fuente cruda,
+#                nunca se consulta directo desde BI (ver docs/dama_governance.md).
+# intermediate -> ephemeral: no persiste en BigQuery, es solo un paso de
+#                composición de SQL entre staging y marts (Data Lineage claro,
+#                sin tablas intermedias huérfanas que nadie documenta).
+# marts       -> table: son las tablas dim_*/fct_* que consume BI/reporting,
+#                materializadas para performance de consulta.
+models:
+  ranchos_dw:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      +materialized: table
+      +schema: marts
+      finanzas:
+        +tags: ['finanzas']
+      leche:
+        +tags: ['leche']
+      hato:
+        +tags: ['hato']
+      veterinaria:
+        +tags: ['veterinaria']
+
+seeds:
+  ranchos_dw:
+    +schema: seeds
+
+vars:
+  # Filtro estándar de vigencia — TODA fact table del proyecto operacional
+  # (RanchOS) versiona históricamente en vez de hacer UPDATE in-place
+  # (estado_registro: Activo/Corregido/Anulado). Cualquier modelo de marts
+  # sobre una fact table DEBE filtrar por esta var, nunca hardcodear el
+  # string 'Activo' suelto en el SQL. Ver docs/dama_governance.md.
+  estado_registro_vigente: 'Activo'

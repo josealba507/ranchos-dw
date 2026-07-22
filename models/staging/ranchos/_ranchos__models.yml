@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: stg_ranchos__animales
+    description: >
+      Passthrough de tb_dim_animales — inventario del hato (hembras y
+      machos conviven en la misma tabla, ver CLAUDE.md de ranchos--app).
+      Modelo de referencia: acá se ilustra el nivel mínimo de tests DAMA
+      exigido a todo modelo de staging (sección 1 de docs/dama_governance.md).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_animal
+        description: PK — docId de Firestore, igual al id_registro del documento.
+        tests:
+          - unique
+          - not_null
+
+      - name: arete
+        description: >
+          Identificador físico del animal en campo. Puede estar vacío
+          (arete/chip son opcionales — ver CLAUDE.md, Módulo de Hato Fase 2)
+          si todavía no fue aretado.
+
+      - name: sexo
+        description: Hembra o Macho — los toros conviven en Inventario, no hay tabla separada.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Hembra', 'Macho']
+
+      - name: estado
+        description: >
+          Activo por defecto; cambia a Vendido/Muerto/<motivo personalizado>
+          vía el módulo Salidas (ver CLAUDE.md, Fase 5 de Hato).
+        tests:
+          - not_null
+
+      - name: finca_asociada
+        description: Finca dueña del animal — inmutable después de creado.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
