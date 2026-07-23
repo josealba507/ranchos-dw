@@ -5,11 +5,12 @@ version: 2
 # sección 6 — todo modelo debe referenciar estas tablas vía {{ source(...) }},
 # nunca con el nombre crudo en un FROM.
 #
-# NOTA: este archivo asume que el dataset "ranchos" ya existe en el proyecto
-# BigQuery configurado en ~/.dbt/profiles.yml (alba-analytics-ganaderia).
-# Al momento de crear este archivo ese dataset todavía no existe ahí — ver
-# la conversación sobre estrategia de migración de datos históricos antes
-# de correr `dbt run`/`dbt source freshness` contra sources reales.
+# Este dataset es una RÉPLICA analítica del dataset operacional real
+# (ranchos-7c313:ranchos) dentro del proyecto del DW (alba-analytics-ganaderia)
+# — no una lectura cross-project directa. Migrado por primera vez (histórico
+# completo, `bq cp` tabla por tabla) el 2026-07-21; la actualización continua
+# de esta réplica (EL) todavía está pendiente de implementar — ver
+# "Prioridades actuales" en CLAUDE.md.
 sources:
   - name: ranchos
     database: alba-analytics-ganaderia
@@ -27,7 +28,7 @@ sources:
       - name: tb_dim_catalogo_finanzas
       - name: tb_dim_animales
         config:
-          loaded_at_field: timestamp_registro
+          loaded_at_field: fecha_creacion
       - name: tb_dim_catalogo_veterinarios
       - name: tb_dim_catalogo_motivos_salida
       - name: tb_dim_catalogo_medicinas
@@ -46,7 +47,7 @@ sources:
           loaded_at_field: timestamp_registro
       - name: tb_fact_logs_actividad
         config:
-          loaded_at_field: timestamp_registro
+          loaded_at_field: timestamp_evento
       - name: tb_fact_partos
         config:
           loaded_at_field: timestamp_registro

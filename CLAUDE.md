@@ -95,36 +95,81 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
   modelo de referencia `stg_ranchos__animales` con el nivel mínimo de
   tests DAMA exigido (ver `docs/dama_governance.md` sección 1), `git init`
   + primer commit + repo en GitHub.
-- **`sources.yml` declara las 19 tablas fuente reales** (`tb_dim_*`/
-  `tb_fact_*`) del dataset `ranchos`, pero **ese dataset todavía NO existe
-  en `alba-analytics-ganaderia`** — hoy vive únicamente en `ranchos-7c313`
-  (el proyecto operacional). `dbt run`/`dbt source freshness` van a fallar
-  contra sources reales hasta resolver la migración.
-- **Pendiente crítico, bloquea todo trabajo real de modelado:** decidir e
-  implementar la estrategia de migración de datos hacia
-  `alba-analytics-ganaderia`. Dos sub-decisiones:
-  1. ¿Migrar el histórico completo ya cargado en `ranchos-7c313`, o
-     arrancar el DW nuevo vacío y alimentarlo solo hacia adelante?
-  2. Esto requiere: dar permisos IAM cross-project (`bigquery.dataEditor`)
-     a la service account de Cloud Functions de `ranchos-7c313` sobre
-     `alba-analytics-ganaderia`, modificar `functions/src/index.ts` (repo
-     `ranchos--app`) para apuntar el cliente de `@google-cloud/bigquery`
-     al proyecto nuevo, y un deploy a producción de esa app — **tocar eso
-     requiere cruzar a la sesión de `ranchos--app` y confirmación
-     explícita del usuario antes de ejecutar**, mismo criterio de cautela
-     que ya rige ese repo para cambios de producción.
+- **Migración histórica completa — hecha (2026-07-21).** Decisión
+  confirmada con el usuario: `ranchos-7c313` sigue siendo la fuente
+  operacional intocada (las Cloud Functions de `ranchos--app` NO se
+  tocaron, ni su destino de sync ni ningún deploy); `alba-analytics-
+  ganaderia` es una RÉPLICA analítica separada. Dataset `ranchos` creado
+  (ubicación `US`, igual que el origen) y las 19 tablas
+  (`tb_dim_*`/`tb_fact_*`) copiadas tabla por tabla vía `bq cp -f --sync`
+  cross-project — conteos de filas verificados idénticos en ambos lados
+  tras la copia (ej. `tb_fact_transacciones_financieras` 1151/1151,
+  `tb_dim_animales` 170/170).
+- **Hallazgo antes de migrar — dataset `Ganaderia` no documentado, ya
+  eliminado:** `alba-analytics-ganaderia` NO estaba vacío como asumía
+  este archivo — tenía un dataset `Ganaderia` (mayúscula, distinto de
+  `ranchos`) con una tabla `tb_fact_transacciones_financieras_old` (1103
+  filas, coincidente con el backfill de Finanzas de Alba Guerra) y una
+  tabla externa `tb_stg_transacciones_sheets`, sin relación con este
+  proyecto ni documentado en ningún CLAUDE.md. Confirmado con el usuario
+  que era una prueba vieja — se borró por completo
+  (`bq rm -r -f -d alba-analytics-ganaderia:Ganaderia`) antes de crear el
+  dataset `ranchos` real, para no dejar basura de datos en el proyecto
+  del DW.
+- **2 discrepancias de esquema encontradas y corregidas al conectar por
+  primera vez contra datos reales** (el modelo de referencia y
+  `sources.yml` se habían escrito en base a lo documentado en
+  `ranchos--app/CLAUDE.md`, no contra el esquema real verificado):
+  1. `tb_dim_animales` NO tiene columna `foto_url` — el `ALTER TABLE`
+     que el CLAUDE.md de `ranchos--app` documenta (PR #84) nunca se
+     ejecutó en producción (confirmado además que
+     `functions/src/index.ts` no referencia `foto_url` en ningún lado —
+     no es un bug activo de sync, solo documentación desactualizada de
+     ese repo, sin código nuevo esperando esa columna). Se quitó del
+     `select` de `stg_ranchos__animales.sql`.
+  2. **Patrón de nombre de columna real, no `timestamp_registro` en
+     todos lados:** las tablas DIM usan `fecha_creacion` (DATE); las
+     FACT usan `timestamp_registro` (TIMESTAMP) — EXCEPTO
+     `tb_fact_logs_actividad`, que usa `timestamp_evento`, y
+     `tb_dim_fincas`, que usa `fecha_registro`. `sources.yml` tenía
+     `loaded_at_field: timestamp_registro` mal puesto en `tb_dim_animales`
+     (dim, no fact) — corregido a `fecha_creacion` — y en
+     `tb_fact_logs_actividad` — corregido a `timestamp_evento`.
+     Verificado con una query a
+     `INFORMATION_SCHEMA.COLUMNS` contra las 19 tablas reales, no solo
+     inferido. `stg_ranchos__animales.sql` y sus 6 tests DAMA corren y
+     pasan contra los datos migrados reales (`dbt run` + `dbt test`
+     limpios).
+- **Pendiente — actualización continua de la réplica (EL), no resuelto
+  todavía:** la copia de arriba es un snapshot único (histórico completo
+  al 2026-07-21). Falta decidir e implementar cómo la réplica
+  `alba-analytics-ganaderia:ranchos` se mantiene al día con
+  `ranchos-7c313:ranchos` hacia adelante (opciones a evaluar: BigQuery
+  Data Transfer Service con "cross-project dataset copy" programado —
+  nativo, sin código propio, probablemente la opción de menor
+  mantenimiento para un solo desarrollador —, vs. un job propio
+  programado vía Cloud Scheduler + `bq cp`/`bq query`). Como las fact
+  tables versionan filas existentes (`estado_registro`: Activo→Corregido)
+  en vez de solo agregar filas nuevas, cualquier estrategia incremental
+  por "solo filas nuevas" perdería esas correcciones — la réplica
+  necesita poder reflejar cambios de estado en filas ya existentes, no
+  solo altas.
 - **Ningún modelo de `marts/` existe todavía** — las carpetas
   `marts/finanzas`, `marts/leche`, `marts/hato`, `marts/veterinaria` están
-  vacías (solo `.gitkeep`/config en `dbt_project.yml`). El primer trabajo
-  real de modelado empieza recién cuando el dataset fuente exista en el
-  proyecto nuevo.
+  vacías (solo `.gitkeep`/config en `dbt_project.yml`). Ya no hay
+  bloqueante técnico para empezar (los datos reales ya están accesibles),
+  solo falta decidir la estrategia de actualización continua de arriba
+  antes de construir sobre datos que quedarían desactualizados sin
+  aviso.
 
 ## Prioridades actuales (en orden)
-1. **Resolver la migración de datos** (ver "Estado actual" arriba) — es lo
-   único que bloquea poder correr `dbt run`/`dbt test` contra datos reales.
-2. Una vez resuelto: construir la capa `staging/` completa (las 19 tablas
-   de `sources.yml`, hoy solo hay 1 modelo de referencia) con sus tests
-   mínimos DAMA.
+1. ~~Resolver la migración de datos~~ — **hecho** (histórico completo
+   migrado 2026-07-21, ver "Estado actual" arriba). Sigue pendiente la
+   sub-parte de actualización continua (EL hacia adelante) — ver mismo
+   punto de "Estado actual".
+2. Construir la capa `staging/` completa (las 19 tablas de
+   `sources.yml`, hoy solo hay 1 modelo de referencia) con sus tests
+   mínimos DAMA — ya se puede correr y verificar contra datos reales.
 3. Primeros marts por dominio — probablemente `marts/finanzas` y
    `marts/leche` primero, por ser los dominios con más historia de datos
    ya cargada en el proyecto operacional (backfills de Ganadera Alba
@@ -134,7 +179,9 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
 5. Evaluar automatizar `dbt run`/`dbt test` (Cloud Build, GitHub Actions,
    o un scheduler simple) en vez de correrlo siempre a mano desde local —
    todavía sin decidir, no hay urgencia mientras el proyecto sea de un solo
-   desarrollador.
+   desarrollador. Probablemente se resuelve junto con la decisión de
+   actualización continua de la réplica (ítem 1) si se elige un job
+   propio en vez de BigQuery Data Transfer Service nativo.
 
 ## Cómo trabajar conmigo en este proyecto
 Mismo criterio de colaboración que ya está establecido en `ranchos--app`
@@ -161,8 +208,9 @@ Mismo criterio de colaboración que ya está establecido en `ranchos--app`
   lineage (`dbt docs generate`) confiable.
 
 ## Pendiente de definir (preguntar si hace falta)
-- Estrategia de migración de datos históricos (ver "Estado actual" y
-  "Prioridades actuales" arriba) — la decisión más urgente del proyecto.
+- **Estrategia de actualización continua de la réplica** (EL hacia
+  adelante, ver "Estado actual" arriba) — ahora la decisión más urgente
+  del proyecto, reemplaza a la migración histórica (ya resuelta).
 - Herramienta de BI/reporting final (Looker Studio es la opción más
   natural por ser gratis y de Google, pero no está decidido) — recién
   relevante una vez existan marts reales para conectar.

@@ -90,9 +90,10 @@ para cuando exista un pipeline/CI) escribe sin prefijo. Ver
 
 ## Estado actual
 
-El dataset `ranchos` con las tablas fuente reales todavía vive únicamente
-en `ranchos-7c313` (no en `alba-analytics-ganaderia`, que está vacío). La
-estrategia de migración de datos históricos hacia el proyecto separado
-está pendiente de decidir — hasta entonces, `dbt run`/`dbt source
-freshness` contra `sources.yml` fallará porque las tablas fuente no
-existen todavía en `alba-analytics-ganaderia`.
+El dataset `ranchos` (19 tablas `tb_dim_*`/`tb_fact_*`) ya existe en
+`alba-analytics-ganaderia`, como réplica del dataset operacional real en
+`ranchos-7c313` — migración histórica completa hecha vía `bq cp`
+cross-project (2026-07-21). `dbt run`/`dbt test` ya corren contra datos
+reales. Pendiente: decidir e implementar cómo esa réplica se mantiene
+actualizada hacia adelante (ver `CLAUDE.md`, sección "Estado actual del
+proyecto").
