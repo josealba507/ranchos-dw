@@ -127,6 +127,18 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      no es un bug activo de sync, solo documentación desactualizada de
      ese repo, sin código nuevo esperando esa columna). Se quitó del
      `select` de `stg_ranchos__animales.sql`.
+     **Resuelto en `ranchos--app` el 2026-07-23** (PR #109 de ese repo):
+     `ALTER TABLE` + código de sync + backfill de los 84 animales con
+     foto ya cargados, todo verificado en producción real (ver
+     `ranchos--app/CLAUDE.md`). Este repo se puso al día el mismo día:
+     `tb_dim_animales` se volvió a copiar completa
+     (`bq cp -f --sync ranchos-7c313:ranchos.tb_dim_animales
+     alba-analytics-ganaderia:ranchos.tb_dim_animales`, mismo método que
+     la migración histórica original) — 170/170 filas, 84/84 con
+     `foto_url`, verificado en ambos lados. `foto_url` volvió al
+     `select` de `stg_ranchos__animales.sql` y a su documentación en
+     `_ranchos__models.yml`; `dbt run` + `dbt test` (6/6) confirmados
+     limpios contra la réplica actualizada.
   2. **Patrón de nombre de columna real, no `timestamp_registro` en
      todos lados:** las tablas DIM usan `fecha_creacion` (DATE); las
      FACT usan `timestamp_registro` (TIMESTAMP) — EXCEPTO

@@ -46,3 +46,12 @@ models:
               arguments:
                 to: source('ranchos', 'tb_dim_fincas')
                 field: nombre_finca
+
+      - name: foto_url
+        description: >
+          URL de Firebase Storage con la foto del animal. Opcional — solo
+          84 de 170 animales la tienen cargada (carga masiva de julio 2026,
+          ver CLAUDE.md de ranchos--app). Agregada a esta tabla el
+          2026-07-23: el ALTER TABLE de PR #84 de ranchos--app nunca había
+          corrido en producción hasta ese fix (ver "Estado actual del
+          proyecto" en CLAUDE.md de este repo).

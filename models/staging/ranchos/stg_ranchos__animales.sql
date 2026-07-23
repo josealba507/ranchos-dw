@@ -20,7 +20,8 @@ renamed as (
         id_madre,
         id_padre,
         padre_tipo,
-        fecha_creacion
+        fecha_creacion,
+        foto_url
 
     from source
 
