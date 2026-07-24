@@ -1,0 +1,39 @@
+# Workflow mínimo que dispara manualmente el transfer config de BigQuery
+# Data Transfer Service ("Dataset Copy") que replica ranchos-7c313:ranchos
+# hacia alba-analytics-ganaderia:ranchos.
+#
+# Por qué existe: la API startManualRuns exige un `requestedRunTime`
+# explícito (no acepta "correlo ahora" con body vacío), y ese timestamp
+# tiene que ser dinámico en cada disparo — algo que un HTTP target de Cloud
+# Scheduler no puede generar por sí solo (su body es texto fijo, configurado
+# una sola vez al crear el job). Este Workflow es esa única pieza dinámica:
+# calcula "ahora" y llama a la API. Toda la lógica real de copia (overwrite
+# de las 19 tablas) vive en el transfer config nativo de Google, no acá.
+#
+# Disparado por Cloud Scheduler 3x/día (8am/1pm/8pm hora de Panamá) — ver
+# el job "dw-el-transfer-3x-diario" en Cloud Scheduler.
+#
+# Deploy:
+#   gcloud workflows deploy dw-trigger-el-transfer \
+#     --project=alba-analytics-ganaderia \
+#     --location=us-central1 \
+#     --source=infra/workflows/trigger_el_transfer.yaml \
+#     --service-account=dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com
+
+main:
+  steps:
+    - init:
+        assign:
+          - transfer_config: "projects/702955643875/locations/us/transferConfigs/6a69a580-0000-2830-91fc-34c7e91a4873"
+          - now: ${time.format(sys.now())}
+    - trigger_transfer:
+        call: http.post
+        args:
+          url: ${"https://bigquerydatatransfer.googleapis.com/v1/" + transfer_config + ":startManualRuns"}
+          auth:
+            type: OAuth2
+          body:
+            requestedRunTime: ${now}
+        result: transfer_result
+    - return_result:
+        return: ${transfer_result.body}

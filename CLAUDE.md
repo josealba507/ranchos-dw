@@ -152,20 +152,76 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      inferido. `stg_ranchos__animales.sql` y sus 6 tests DAMA corren y
      pasan contra los datos migrados reales (`dbt run` + `dbt test`
      limpios).
-- **Pendiente — actualización continua de la réplica (EL), no resuelto
-  todavía:** la copia de arriba es un snapshot único (histórico completo
-  al 2026-07-21). Falta decidir e implementar cómo la réplica
-  `alba-analytics-ganaderia:ranchos` se mantiene al día con
-  `ranchos-7c313:ranchos` hacia adelante (opciones a evaluar: BigQuery
-  Data Transfer Service con "cross-project dataset copy" programado —
-  nativo, sin código propio, probablemente la opción de menor
-  mantenimiento para un solo desarrollador —, vs. un job propio
-  programado vía Cloud Scheduler + `bq cp`/`bq query`). Como las fact
-  tables versionan filas existentes (`estado_registro`: Activo→Corregido)
-  en vez de solo agregar filas nuevas, cualquier estrategia incremental
-  por "solo filas nuevas" perdería esas correcciones — la réplica
-  necesita poder reflejar cambios de estado en filas ya existentes, no
-  solo altas.
+- **Actualización continua de la réplica (EL) — hecho (2026-07-24),
+  3 veces al día (8am/1pm/8pm hora de Panamá).** Arquitectura híbrida,
+  4 piezas en `alba-analytics-ganaderia` (proyecto del DW, ninguna toca
+  `ranchos--app`):
+  1. **Transfer config nativo** (BigQuery Data Transfer Service,
+     `data_source=cross_region_copy`, "Dataset Copy") —
+     `projects/702955643875/locations/us/transferConfigs/6a69a580-0000-2830-91fc-34c7e91a4873`.
+     `overwrite_destination_table: true` (WRITE_TRUNCATE por tabla —
+     necesario porque las fact tables versionan filas existentes en vez
+     de solo agregar; una copia incremental de "solo filas nuevas"
+     perdería las correcciones Activo→Corregido). `no_auto_scheduling`
+     activado — el schedule interno de este transfer type tiene un
+     **mínimo de 12 horas** (`minimumScheduleInterval: 43200s`,
+     confirmado contra la API real, no documentado en ningún lado) que
+     no alcanza para 3x/día, así que el disparo real no usa el
+     scheduler propio del transfer.
+  2. **Workflow `dw-trigger-el-transfer`** (`us-central1`, fuente
+     versionada en [`infra/workflows/trigger_el_transfer.yaml`](infra/workflows/trigger_el_transfer.yaml)) —
+     única pieza de lógica "propia" de todo el pipeline, y mínima: la
+     API `startManualRuns` exige un `requestedRunTime` explícito (no
+     acepta body vacío = "correlo ahora", confirmado empíricamente), y
+     ese timestamp tiene que ser dinámico en cada disparo — un HTTP
+     target de Cloud Scheduler no puede generarlo solo (body estático).
+     El Workflow calcula `time.format(sys.now())` y llama a
+     `startManualRuns`. Corre como la service account
+     `dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com`,
+     con un **rol IAM custom mínimo** (`dwTransferRunner`, solo
+     `bigquery.transfers.get`+`bigquery.transfers.update` — no existe un
+     rol predefinido más angosto que `roles/bigquery.admin` para esto,
+     confirmado revisando permisos incluidos de los roles predefinidos).
+  3. **Cloud Scheduler `dw-el-transfer-3x-diario`** (`us-central1`,
+     cron `0 8,13,20 * * *`, `--time-zone=America/Panama`) — llama a
+     `workflowexecutions.googleapis.com` para ejecutar el Workflow,
+     usando OAuth con la service account
+     `dw-scheduler-invoker@alba-analytics-ganaderia.iam.gserviceaccount.com`
+     (`roles/workflows.invoker` a nivel proyecto — la API no tiene un
+     comando `gcloud workflows add-iam-policy-binding` para scopearlo
+     solo a este Workflow).
+  - **APIs habilitadas como parte de este trabajo:** `iam`,
+    `cloudscheduler`, `workflows`, `workflowexecutions` (`bigquery`/
+    `bigquerydatatransfer` ya estaban habilitadas en ambos proyectos
+    desde antes).
+  - **Gotcha reproducible — demora de propagación de IAM:** tanto el
+    primer intento de ejecución del Workflow (`IAM permission denied`
+    pese al binding ya existente) como el primer disparo real de Cloud
+    Scheduler fallaron en silencio por este motivo — un `add-iam-policy-
+    binding` recién creado puede tardar ~1-2 min en propagarse antes de
+    que el permiso sea efectivo. Ambos casos se resolvieron solos al
+    reintentar sin cambiar nada. Si se vuelve a tocar IAM de estos
+    recursos, esperar antes de asumir que algo está mal configurado.
+  - **Verificado de punta a punta, 2 veces:** ejecución manual del
+    Workflow (`gcloud workflows execute`) y disparo real del Cloud
+    Scheduler job (`gcloud scheduler jobs run`) — ambos completaron
+    `SUCCEEDED` en Workflow, `SUCCEEDED` en el transfer run de BigQuery,
+    y con conteos de filas que subieron respecto al snapshot original
+    (ej. `tb_fact_transacciones_financieras` 1151→1157), confirmando que
+    trae datos reales de producción, no una copia estática.
+  - **Hallazgo durante la verificación, sin acción requerida:** al
+    revisar el dataset después de la primera corrida automática
+    aparecieron 3 vistas (`VS_001_VENTA_LECHE`,
+    `VS_002_TRANSACCION_FINANCIERA_AGRUPADA`,
+    `VS_OO3_TRANSACCION_FINANCIERA_DIARIA`) no declaradas en
+    `sources.yml` ni traídas por la copia (confirmado que no existen en
+    `ranchos-7c313:ranchos`, el dataset origen). El usuario confirmó que
+    las creó él mismo directo en BigQuery Console, prototipando reportes
+    de Leche/Finanzas — no son parte del pipeline dbt todavía. Confirmado
+    además, con una corrida real ya ejecutada, que `overwrite_destination_table`
+    NO borra objetos del destino que no existen en el origen (solo
+    sobreescribe por nombre coincidente) — estas 3 vistas sobrevivieron
+    la corrida automática sin problema.
 - **Ningún modelo de `marts/` existe todavía** — las carpetas
   `marts/finanzas`, `marts/leche`, `marts/hato`, `marts/veterinaria` están
   vacías (solo `.gitkeep`/config en `dbt_project.yml`). Ya no hay
@@ -176,9 +232,10 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
 
 ## Prioridades actuales (en orden)
 1. ~~Resolver la migración de datos~~ — **hecho** (histórico completo
-   migrado 2026-07-21, ver "Estado actual" arriba). Sigue pendiente la
-   sub-parte de actualización continua (EL hacia adelante) — ver mismo
-   punto de "Estado actual".
+   migrado 2026-07-21 + actualización continua 3x/día vía Cloud
+   Scheduler + Workflow + BigQuery Data Transfer Service, implementado
+   2026-07-24, ver "Estado actual" arriba). No queda ninguna sub-parte
+   pendiente de este ítem.
 2. Construir la capa `staging/` completa (las 19 tablas de
    `sources.yml`, hoy solo hay 1 modelo de referencia) con sus tests
    mínimos DAMA — ya se puede correr y verificar contra datos reales.
@@ -220,9 +277,6 @@ Mismo criterio de colaboración que ya está establecido en `ranchos--app`
   lineage (`dbt docs generate`) confiable.
 
 ## Pendiente de definir (preguntar si hace falta)
-- **Estrategia de actualización continua de la réplica** (EL hacia
-  adelante, ver "Estado actual" arriba) — ahora la decisión más urgente
-  del proyecto, reemplaza a la migración histórica (ya resuelta).
 - Herramienta de BI/reporting final (Looker Studio es la opción más
   natural por ser gratis y de Google, pero no está decidido) — recién
   relevante una vez existan marts reales para conectar.

@@ -93,7 +93,41 @@ para cuando exista un pipeline/CI) escribe sin prefijo. Ver
 El dataset `ranchos` (19 tablas `tb_dim_*`/`tb_fact_*`) ya existe en
 `alba-analytics-ganaderia`, como réplica del dataset operacional real en
 `ranchos-7c313` — migración histórica completa hecha vía `bq cp`
-cross-project (2026-07-21). `dbt run`/`dbt test` ya corren contra datos
-reales. Pendiente: decidir e implementar cómo esa réplica se mantiene
-actualizada hacia adelante (ver `CLAUDE.md`, sección "Estado actual del
-proyecto").
+cross-project (2026-07-21), con actualización continua 3 veces al día
+(8am/1pm/8pm hora de Panamá) vía Cloud Scheduler + Cloud Workflows +
+BigQuery Data Transfer Service (2026-07-24). `dbt run`/`dbt test` ya
+corren contra datos reales y actualizados. Detalle completo de la
+arquitectura EL en `CLAUDE.md`, sección "Estado actual del proyecto".
+
+## Pipeline EL (actualización de la réplica, 3x/día)
+
+```
+infra/workflows/trigger_el_transfer.yaml   Workflow que dispara el transfer
+                                            (única lógica "propia" del pipeline)
+```
+
+Componentes en GCP (proyecto `alba-analytics-ganaderia`, todos en
+`us-central1` salvo el transfer config que es `us`):
+- Transfer config nativo `cross_region_copy` (Dataset Copy,
+  `overwrite_destination_table: true`, schedule automático deshabilitado).
+- Workflow `dw-trigger-el-transfer` — corre como
+  `dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com`.
+- Cloud Scheduler `dw-el-transfer-3x-diario` (cron `0 8,13,20 * * *`,
+  `America/Panama`) — invoca el Workflow como
+  `dw-scheduler-invoker@alba-analytics-ganaderia.iam.gserviceaccount.com`.
+
+```powershell
+# Redeploy del Workflow tras editar el .yaml
+gcloud workflows deploy dw-trigger-el-transfer `
+  --project=alba-analytics-ganaderia --location=us-central1 `
+  --source=infra/workflows/trigger_el_transfer.yaml `
+  --service-account=dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com
+
+# Disparo manual de prueba (fuera de horario)
+gcloud scheduler jobs run dw-el-transfer-3x-diario `
+  --project=alba-analytics-ganaderia --location=us-central1
+
+# Ver corridas recientes del transfer
+bq ls --transfer_run --project_id=alba-analytics-ganaderia `
+  "projects/702955643875/locations/us/transferConfigs/6a69a580-0000-2830-91fc-34c7e91a4873"
+```
