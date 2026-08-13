@@ -17,24 +17,41 @@ clean-targets:
   - "dbt_packages"
   - "logs"
 
-# --- Convenciones DAMA-DMBOK aplicadas a la materialización por capa ---
-# staging     -> view: sin costo de storage, siempre refleja la fuente cruda,
-#                nunca se consulta directo desde BI (ver docs/dama_governance.md).
-# intermediate -> ephemeral: no persiste en BigQuery, es solo un paso de
-#                composición de SQL entre staging y marts (Data Lineage claro,
-#                sin tablas intermedias huérfanas que nadie documenta).
-# marts       -> table: son las tablas dim_*/fct_* que consume BI/reporting,
-#                materializadas para performance de consulta.
+# --- Arquitectura de capas (ver docs/fase2_arquitectura.md) ---
+# L0 raw        -> fuera de dbt: dataset "ranchos", poblado por el pipeline
+#                  EL (BigQuery Data Transfer + Workflow), nunca por un
+#                  modelo dbt. Ver _ranchos__sources.yml.
+# L1 staging    -> view, dataset stg_ranchos: 1:1 con la fuente, solo
+#                  renombra/castea, nunca se consulta directo desde BI.
+# L2 intermedio -> dos mecanismos distintos, mismo layer conceptual:
+#                  - models/intermediate/: ephemeral (no persiste en
+#                    BigQuery) para joins/reglas de negocio/conciliación.
+#                  - snapshots/: table, dataset int_ranchos, para
+#                    historización SCD tipo 2 de dimensiones que cambian
+#                    (animal, lote, insumo).
+# L3 marts      -> table, dataset marts_ranchos: modelo dimensional
+#                  (dim_*/fct_*) organizado por dominio de negocio, no por
+#                  tabla fuente. Motor del esquema estrella.
+# L4 reporting  -> view (default; algunos modelos serán table — features/
+#                  alertas), dataset rpt_ranchos: vistas de negocio con
+#                  control de acceso, tablas de features para ML, tablas de
+#                  alertas para reverse ETL. Es lo único a lo que BI/Looker
+#                  Studio debe conectarse — nunca a marts_ranchos directo
+#                  (ver docs/dama_governance.md sección 5).
+# Transversal   -> metadata_ranchos: resultados de tests persistidos,
+#                  histórico de freshness, auditoría de ejecuciones. Se
+#                  activa en la Fase 5 (calidad de datos) — el dataset se
+#                  documenta acá pero todavía no recibe escrituras.
 models:
   ranchos_dw:
     staging:
       +materialized: view
-      +schema: staging
+      +schema: stg_ranchos
     intermediate:
       +materialized: ephemeral
     marts:
       +materialized: table
-      +schema: marts
+      +schema: marts_ranchos
       finanzas:
         +tags: ['finanzas']
       leche:
@@ -43,10 +60,29 @@ models:
         +tags: ['hato']
       veterinaria:
         +tags: ['veterinaria']
+      insumos:
+        +tags: ['insumos']
+    reporting:
+      +materialized: view
+      +schema: rpt_ranchos
+      finanzas:
+        +tags: ['finanzas', 'reporting']
+      leche:
+        +tags: ['leche', 'reporting']
+      hato:
+        +tags: ['hato', 'reporting']
+      veterinaria:
+        +tags: ['veterinaria', 'reporting']
+      insumos:
+        +tags: ['insumos', 'reporting']
 
 seeds:
   ranchos_dw:
-    +schema: seeds
+    +schema: seeds_ranchos
+
+snapshots:
+  ranchos_dw:
+    +schema: int_ranchos
 
 vars:
   # Filtro estándar de vigencia — TODA fact table del proyecto operacional

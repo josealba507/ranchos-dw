@@ -44,23 +44,22 @@ tabla, etc.), consultá `CLAUDE.md` de `ranchos--app` — no lo dupliques acá.
 - **Repo:** https://github.com/josealba507/ranchos-dw (privado).
 
 ## Arquitectura de capas
+5 capas + transversal, un dataset de BigQuery por capa (los permisos de
+BigQuery se otorgan por dataset — es la razón de gobierno):
+
 ```
-sources (BigQuery: tb_dim_*, tb_fact_* — dataset "ranchos")
-    │
-    ▼
-staging/<fuente>/    stg_*   1:1 con la fuente, solo renombra/castea tipos.
-                             Vista. Nunca hace joins ni agregaciones.
-    │
-    ▼
-intermediate/        int_*   joins/agregaciones reutilizables. Ephemeral —
-                             no persiste como tabla en BigQuery.
-    │
-    ▼
-marts/<dominio>/     dim_*/fct_*  modelos finales, tabla. Organizados por
-                             DOMINIO de negocio (finanzas/leche/hato/
-                             veterinaria), no por tabla fuente. Es lo único
-                             que BI/reporting debe consultar.
+ranchos (L0 raw, fuera de dbt) → stg_ranchos (L1) → int_ranchos (L2,
+solo snapshots — intermediate/ es ephemeral, sin dataset propio) →
+marts_ranchos (L3, esquema estrella) → rpt_ranchos (L4, lo ÚNICO que BI/
+reverse ETL debe consultar) · metadata_ranchos (transversal, reservado,
+sin uso todavía)
 ```
+
+Diagrama completo y detalle de cada dataset en
+[`docs/dama_governance.md`](docs/dama_governance.md) sección 2. Decisiones
+de por qué esta arquitectura y no otra (incluida la razón de separar L3 de
+L4, que no es obvia) en
+[`docs/fase2_arquitectura.md`](docs/fase2_arquitectura.md).
 
 Reglas completas de gobernanza de datos (DAMA-DMBOK traducido a reglas
 concretas de dbt — tests obligatorios por capa, naming, versionado
@@ -222,13 +221,75 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
     NO borra objetos del destino que no existen en el origen (solo
     sobreescribe por nombre coincidente) — estas 3 vistas sobrevivieron
     la corrida automática sin problema.
-- **Ningún modelo de `marts/` existe todavía** — las carpetas
-  `marts/finanzas`, `marts/leche`, `marts/hato`, `marts/veterinaria` están
-  vacías (solo `.gitkeep`/config en `dbt_project.yml`). Ya no hay
-  bloqueante técnico para empezar (los datos reales ya están accesibles),
-  solo falta decidir la estrategia de actualización continua de arriba
-  antes de construir sobre datos que quedarían desactualizados sin
-  aviso.
+- **Ningún modelo de `marts/`/`reporting/` existe todavía** — solo el
+  scaffold de carpetas (`.gitkeep`/config en `dbt_project.yml`). Ya no
+  hay ningún bloqueante técnico para empezar a construirlos.
+- **Especificación conceptual de DW por capas — Fases 0 y 2 completas
+  (2026-08-13).** El usuario compartió un documento de especificación
+  externo (no un pedido puntual) con un plan completo: Fase 0
+  (inspección, sin código) → Fase 1 (nomenclatura, Punto de Control 1) →
+  Fase 2 (arquitectura de capas) → Fase 3 (reglas de staging) → Fase 4
+  (modelo dimensional, Punto de Control 2: 1 solo hecho de punta a
+  punta antes de replicar el patrón) → Fase 5 (calidad) → Fase 6
+  (alarmas) → Fase 7 (ML) → Fase 8 (optimización/costo). Regla del
+  propio documento: cuando choca con una convención ya establecida de
+  este proyecto, gana el proyecto — se reporta, no se resuelve en
+  silencio.
+  - **Fase 0** ([`docs/fase0_inspeccion.md`](docs/fase0_inspeccion.md)):
+    inspección completa contra código real (no contra lo documentado en
+    `ranchos--app/CLAUDE.md`, que ya demostró tener desfasajes — ver
+    hallazgo de `foto_url` arriba). Hallazgos que cambian el resto del
+    plan: (1) el pipeline de replicación NO es un patrón changelog/CDC
+    — es DML con versionado (`estado_registro`) ya resuelto en origen,
+    así que buena parte de la Fase 3 del documento (dedupe de
+    changelog) no aplica tal cual; (2) el dinero NO son enteros en
+    centavos como asume el documento — es `NUMERIC`/float, decisión ya
+    tomada explícitamente en este proyecto (ver Insumos) — se mantiene
+    `NUMERIC`, gana el proyecto; (3) **no hay `serverTimestamp()` en
+    ningún lado de `ranchos--app`** — `timestamp_registro`/
+    `fecha_creacion` se asignan con el reloj del DISPOSITIVO cliente,
+    no del servidor, aunque el servidor sí tiene `context.timestamp`
+    disponible y sin usar (solo como fallback que nunca se activa). No
+    bloquea nada hoy; si se llega a la Fase 7 (ML), es un riesgo real
+    de fuga temporal para capturas offline — requeriría un cambio
+    aditivo en `functions/src/index.ts` de `ranchos--app`, con
+    confirmación explícita cuando llegue el momento; (4) el dataset
+    origen creció de 19 a 26 tablas desde la migración inicial (módulo
+    de Insumos + catálogos nuevos de Hato); (5) 4 vistas (`VS_*`)
+    creadas a mano en BigQuery Console, consumo real preexistente sin
+    documentar.
+  - **Fase 1** (Punto de Control 1, aprobado sin cambios): nomenclatura
+    — español para negocio + inglés para prefijos técnicos, `snake_case`
+    preservado 1:1 (Firestore ya usa snake_case acá, no hay conversión
+    que hacer), prefijos dbt estándar (`stg_`/`int_`/`dim_`/`fct_`) ya
+    en uso, singular en dims/facts (`dim_animal`, no `dim_animales`).
+  - **Fase 2** ([`docs/fase2_arquitectura.md`](docs/fase2_arquitectura.md)):
+    arquitectura de 5 capas + transversal aplicada (ver "Arquitectura de
+    capas" arriba). Decisiones concretas: `ranchos` se mantiene como
+    nombre de L0 sin rename (evita recrear el pipeline EL sin
+    beneficio); se agregó el dominio `insumos` a `marts`/`reporting`
+    (no existía en el scaffold original, el módulo es posterior); se
+    agregó el dataset `rpt_ranchos` para L4 (corrige un hueco de mi
+    propia propuesta de nomenclatura de la Fase 1, que lo había
+    mezclado sin querer dentro de `marts_ranchos`); `dama_governance.md`
+    sección 5 actualizada — BI se conecta a `rpt_ranchos` (L4), nunca a
+    `marts_ranchos` (L3) directo. `sources.yml` reescrito con las 26
+    tablas reales (de paso se corrigió `tb_dim_fincas`, que había
+    quedado con el `loaded_at_field` mal puesto desde la sesión de
+    migración anterior pese a estar identificado como excepción).
+    Confirmado (no ejecutado, porque ya era así): la separación
+    "proyecto de ingesta vs. proyecto de warehouse" que asume el
+    documento no aplica tal cual acá — solo hay 2 proyectos GCP
+    (`ranchos-7c313` operacional, `alba-analytics-ganaderia`
+    analítico), y L0 ya vive en el proyecto de warehouse. Se recomendó
+    explícitamente NO crear un tercer proyecto de "solo ingesta" — sin
+    beneficio de gobierno real a este volumen/equipo de 1 persona.
+  - **Siguiente paso:** Fase 3 (reglas de staging, sin Punto de Control
+    propio) hacia la Fase 4, deteniéndome en el Punto de Control 2
+    obligatorio — 1 solo hecho de punta a punta (candidato sugerido por
+    el propio documento: `movimientos_insumos`, por ser el hecho
+    transaccional más simple de declarar en una frase) antes de
+    replicar el patrón a los demás dominios.
 
 ## Prioridades actuales (en orden)
 1. ~~Resolver la migración de datos~~ — **hecho** (histórico completo
@@ -236,13 +297,19 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
    Scheduler + Workflow + BigQuery Data Transfer Service, implementado
    2026-07-24, ver "Estado actual" arriba). No queda ninguna sub-parte
    pendiente de este ítem.
-2. Construir la capa `staging/` completa (las 19 tablas de
-   `sources.yml`, hoy solo hay 1 modelo de referencia) con sus tests
-   mínimos DAMA — ya se puede correr y verificar contra datos reales.
-3. Primeros marts por dominio — probablemente `marts/finanzas` y
-   `marts/leche` primero, por ser los dominios con más historia de datos
-   ya cargada en el proyecto operacional (backfills de Ganadera Alba
-   Guerra, ver `ranchos--app/CLAUDE.md`).
+2. **Conducido ahora por el plan de fases del documento de especificación**
+   (ver "Estado actual" arriba) — reemplaza este ítem genérico. Fases 0-2
+   completas; próximo: Fase 3 (reglas de staging) → Fase 4, Punto de
+   Control 2 (`movimientos_insumos` de punta a punta: staging → snapshot/
+   intermediate → dims → fact → 1 vista de `reporting/`) antes de
+   construir la capa `staging/` completa (26 tablas de `sources.yml`,
+   hoy solo hay 1 modelo de referencia) y replicar el patrón al resto de
+   los dominios.
+3. Primeros marts por dominio más allá del hecho de control —
+   probablemente `marts/finanzas` y `marts/leche` después, por ser los
+   dominios con más historia de datos ya cargada en el proyecto
+   operacional (backfills de Ganadera Alba Guerra, ver
+   `ranchos--app/CLAUDE.md`).
 4. `dbt docs generate` + `dbt docs serve` como catálogo de datos navegable,
    una vez haya suficientes modelos para que valga la pena.
 5. Evaluar automatizar `dbt run`/`dbt test` (Cloud Build, GitHub Actions,
