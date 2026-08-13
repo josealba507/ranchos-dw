@@ -56,6 +56,147 @@ models:
           corrido en producción hasta ese fix (ver "Estado actual del
           proyecto" en CLAUDE.md de este repo).
 
+      - name: lote
+        description: >
+          Lote de Manejo — texto libre, no FK estricta (mismo criterio que
+          motivo/veterinario en otros módulos). Mutable — historización en
+          snapshots/snapshot_animal.sql.
+
+      - name: categoria_animal
+        description: Mutable — historización en snapshots/snapshot_animal.sql.
+
+  - name: stg_ranchos__catalogo_lotes
+    description: >
+      Passthrough de tb_dim_catalogo_lotes. nombre/estado mutables — SCD2
+      en snapshots/snapshot_lote.sql.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_item
+        tests:
+          - unique
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__catalogo_categorias_animal
+    description: Passthrough de tb_dim_catalogo_categorias_animal. Sin historización SCD2.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_item
+        tests:
+          - unique
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__catalogo_motivos_salida
+    description: >
+      Passthrough de tb_dim_catalogo_motivos_salida. PK real id_motivo, no
+      id_item (única excepción entre los catálogos de Hato).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_motivo
+        tests:
+          - unique
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__partos
+    description: Passthrough de tb_fact_partos. Grano — un nacimiento.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_parto
+        tests:
+          - not_null
+
+      - name: id_madre
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_animales')
+                field: id_animal
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__salidas
+    description: Passthrough de tb_fact_salidas. Grano — una salida/baja de un animal.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_salida
+        tests:
+          - not_null
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_animales')
+                field: id_animal
+
+      - name: motivo
+        tests:
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
   - name: stg_ranchos__fincas
     description: >
       Passthrough de tb_dim_fincas — entidad multi-tenant raíz del
