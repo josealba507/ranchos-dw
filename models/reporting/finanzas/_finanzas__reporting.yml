@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: rpt_transacciones_financieras_recientes
+    description: Vista de negocio (L4) sobre fct_transaccion_financiera.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: finanzas
+    columns:
+      - name: fecha_transaccion
+        tests:
+          - not_null
+
+      - name: nombre_finca
+        tests:
+          - not_null

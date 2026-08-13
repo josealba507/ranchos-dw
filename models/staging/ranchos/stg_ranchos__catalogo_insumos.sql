@@ -27,14 +27,9 @@ renamed as (
         fecha_creacion
 
     from source
-    -- Excluye residuos de sesiones de verificación de ranchos--app: fincas
-    -- de prueba con prefijo TEST- que nunca se limpiaron del todo en
-    -- producción (ver docs/fase0_inspeccion.md — "Debug Insumo"/
-    -- "Alimento Vacas Ordeño (TEST)" ya estaban documentados como
-    -- huérfanos conocidos en CLAUDE.md de ranchos--app; acá se encontraron
-    -- más). No es lógica de negocio real — es sanear basura técnica antes
-    -- de que rompa el test de integridad referencial contra tb_dim_fincas.
-    where finca_asociada not like 'TEST-%'
+    -- Ver macros/filtros_datos_prueba.sql — residuos de sesiones de
+    -- verificación de ranchos--app nunca limpiados del todo en producción.
+    where {{ filtro_finca_prueba_por_nombre() }}
 
 )
 

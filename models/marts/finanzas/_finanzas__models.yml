@@ -1,0 +1,64 @@
+version: 2
+
+models:
+  - name: dim_catalogo_finanzas
+    description: Grano — un item del catálogo de categoría/clase de gasto por finca.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: finanzas
+    columns:
+      - name: id_item
+        description: PK.
+        tests:
+          - unique
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
+
+  - name: fct_transaccion_financiera
+    description: Grano — un movimiento financiero (Entrada/Inversion/Salida).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: finanzas
+    columns:
+      - name: id_registro
+        description: PK.
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_transaccion
+        description: Fecha de negocio — FK a dim_fecha.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: id_finca
+
+      - name: tipo_transaccion
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Entrada', 'Inversion', 'Salida']
+
+      - name: monto_total
+        tests:
+          - not_null
