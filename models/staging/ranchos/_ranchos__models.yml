@@ -273,3 +273,89 @@ models:
           inconsistencia 1).
         tests:
           - not_null
+
+  - name: stg_ranchos__venta_leche
+    description: >
+      Passthrough de tb_fact_venta_leche — entregas de leche (producción,
+      pago). Grano: una entrega. Los 5 valores derivados
+      (litros_valor_base...valor_litro_total) son fuente de verdad
+      server-side (calcularEntregaLeche/corregirEntregaLeche, Cloud
+      Functions callable de ranchos--app) — nunca se recalculan en dbt.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_pago
+        description: Fecha de negocio — FK a dim_fecha, nunca timestamp_registro.
+        tests:
+          - not_null
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: id_finca
+
+      - name: litros_entrega
+        tests:
+          - not_null
+
+      - name: valor_entrega_neta
+        tests:
+          - not_null
+
+  - name: stg_ranchos__microbiologia_leche
+    description: Passthrough de tb_fact_microbiologia_leche. Grano — una muestra de microbiología.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_muestra
+        tests:
+          - not_null
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: id_finca
+
+  - name: stg_ranchos__composicion_leche
+    description: Passthrough de tb_fact_composicion_leche. Grano — una muestra de composición.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_muestra
+        tests:
+          - not_null
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: id_finca
