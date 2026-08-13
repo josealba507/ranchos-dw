@@ -18,20 +18,31 @@ captura datos por sí mismo.
 
 ```
 models/
-  staging/<fuente>/     stg_*  — 1:1 con la tabla fuente, vista
-  intermediate/          int_*  — joins/agregaciones reutilizables, ephemeral
-  marts/<dominio>/       dim_*/fct_* — modelos finales, tabla, lo único que BI consulta
+  staging/<fuente>/     stg_*  — 1:1 con la tabla fuente, vista (dataset stg_ranchos)
+  intermediate/          int_*  — joins/reglas de negocio reutilizables, ephemeral (sin dataset propio)
+  marts/<dominio>/       dim_*/fct_* — modelo dimensional, tabla (dataset marts_ranchos)
     finanzas/
     leche/
     hato/
     veterinaria/
+    insumos/
+  reporting/<dominio>/   vistas de negocio + features ML + alertas reverse ETL (dataset rpt_ranchos)
+                         — lo ÚNICO que BI/Looker Studio debe consultar
+    (mismos dominios que marts/)
   marts/exposures.yml     trazabilidad hasta el dashboard/reporte real
-seeds/                    datos de referencia estáticos (CSV)
+seeds/                    datos de referencia estáticos (CSV) (dataset seeds_ranchos)
 macros/                   macros propias (incluye generate_schema_name.sql)
-snapshots/                SCD tipo 2 si algún día hace falta sobre una dim
+snapshots/                historización SCD tipo 2 de dimensiones que cambian (dataset int_ranchos)
 tests/                    tests genéricos custom (además de los declarativos en cada .yml)
 docs/dama_governance.md   reglas de gobernanza de datos del proyecto
+docs/fase0_inspeccion.md  informe de inspección del proyecto (convenciones, modelo de datos, tiempo, replicación)
+docs/fase2_arquitectura.md  decisiones de arquitectura de capas y datasets
 ```
+
+Arquitectura completa: `ranchos` (L0 raw) → `stg_ranchos` (L1) →
+`int_ranchos` (L2, solo snapshots) → `marts_ranchos` (L3) → `rpt_ranchos`
+(L4, lo que consume BI) — ver `docs/fase2_arquitectura.md` para el
+detalle de cada decisión.
 
 ## Setup local (primera vez)
 

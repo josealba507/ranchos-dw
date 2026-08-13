@@ -5,12 +5,24 @@ version: 2
 # sección 6 — todo modelo debe referenciar estas tablas vía {{ source(...) }},
 # nunca con el nombre crudo en un FROM.
 #
-# Este dataset es una RÉPLICA analítica del dataset operacional real
-# (ranchos-7c313:ranchos) dentro del proyecto del DW (alba-analytics-ganaderia)
-# — no una lectura cross-project directa. Migrado por primera vez (histórico
-# completo, `bq cp` tabla por tabla) el 2026-07-21; la actualización continua
-# de esta réplica (EL) todavía está pendiente de implementar — ver
-# "Prioridades actuales" en CLAUDE.md.
+# Este dataset es la capa L0 (raw) del warehouse — una RÉPLICA analítica del
+# dataset operacional real (ranchos-7c313:ranchos) dentro del proyecto del
+# DW (alba-analytics-ganaderia), no una lectura cross-project directa.
+# Migrado por primera vez (histórico completo, `bq cp` tabla por tabla) el
+# 2026-07-21; actualizada 3x/día (8am/1pm/8pm hora Panamá) vía BigQuery Data
+# Transfer Service ("Dataset Copy", overwrite completo — necesario porque las
+# fact tables versionan correcciones Activo→Corregido, no solo agregan
+# filas) disparado por Cloud Scheduler + Workflow (ver
+# infra/workflows/trigger_el_transfer.yaml). Este dataset NUNCA se modifica
+# ni se le aplica retención — es la fuente para reprocesar el histórico
+# completo si cambia la lógica de negocio (ver docs/fase0_inspeccion.md,
+# sección 0.4, y docs/fase2_arquitectura.md).
+#
+# loaded_at_field NO es uniforme entre tablas (verificado contra
+# INFORMATION_SCHEMA.COLUMNS real, no asumido) — la mayoría de las tb_dim_*
+# usan fecha_creacion, pero tb_dim_fincas usa fecha_registro; la mayoría de
+# las tb_fact_* usan timestamp_registro, pero tb_fact_logs_actividad usa
+# timestamp_evento. No copiar el patrón de otra tabla sin verificar.
 sources:
   - name: ranchos
     database: alba-analytics-ganaderia
@@ -22,20 +34,26 @@ sources:
       (estado_registro: Activo/Corregido/Anulado) en vez de hacer UPDATE
       in-place.
     tables:
+      # --- Dimensiones núcleo (fincas/roles/usuarios) ---
       - name: tb_dim_fincas
+        config:
+          loaded_at_field: fecha_registro
       - name: tb_dim_roles
-      - name: tb_dim_usuarios
-      - name: tb_dim_catalogo_finanzas
-      - name: tb_dim_animales
         config:
           loaded_at_field: fecha_creacion
-      - name: tb_dim_catalogo_veterinarios
-      - name: tb_dim_catalogo_motivos_salida
-      - name: tb_dim_catalogo_medicinas
-      - name: tb_dim_catalogo_motivos_tratamiento
+      - name: tb_dim_usuarios
+        config:
+          loaded_at_field: fecha_creacion
+
+      # --- Finanzas ---
+      - name: tb_dim_catalogo_finanzas
+        config:
+          loaded_at_field: fecha_creacion
       - name: tb_fact_transacciones_financieras
         config:
           loaded_at_field: timestamp_registro
+
+      # --- Venta de Leche ---
       - name: tb_fact_venta_leche
         config:
           loaded_at_field: timestamp_registro
@@ -45,21 +63,65 @@ sources:
       - name: tb_fact_composicion_leche
         config:
           loaded_at_field: timestamp_registro
-      - name: tb_fact_logs_actividad
+
+      # --- Hato (inventario, nacimientos, salidas, catálogos) ---
+      - name: tb_dim_animales
         config:
-          loaded_at_field: timestamp_evento
+          loaded_at_field: fecha_creacion
+      - name: tb_dim_catalogo_lotes
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_dim_catalogo_categorias_animal
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_dim_catalogo_motivos_salida
+        config:
+          loaded_at_field: fecha_creacion
       - name: tb_fact_partos
-        config:
-          loaded_at_field: timestamp_registro
-      - name: tb_fact_palpamientos
-        config:
-          loaded_at_field: timestamp_registro
-      - name: tb_fact_pesaje_leche
         config:
           loaded_at_field: timestamp_registro
       - name: tb_fact_salidas
         config:
           loaded_at_field: timestamp_registro
+
+      # --- Veterinaria (palpamiento, tratamiento, pesaje) ---
+      - name: tb_dim_catalogo_veterinarios
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_dim_catalogo_medicinas
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_dim_catalogo_motivos_tratamiento
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_fact_palpamientos
+        config:
+          loaded_at_field: timestamp_registro
       - name: tb_fact_tratamientos
         config:
           loaded_at_field: timestamp_registro
+      - name: tb_fact_pesaje_leche
+        config:
+          loaded_at_field: timestamp_registro
+
+      # --- Insumos (inventario, catálogos, movimientos, consumo) ---
+      - name: tb_dim_catalogo_insumos
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_dim_catalogo_categorias_insumos
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_dim_catalogo_unidades_insumos
+        config:
+          loaded_at_field: fecha_creacion
+      - name: tb_fact_movimientos_insumos
+        config:
+          loaded_at_field: timestamp_registro
+      - name: tb_fact_periodos_consumo_insumos
+        config:
+          loaded_at_field: timestamp_registro
+
+      # --- Auditoría ---
+      - name: tb_fact_logs_actividad
+        config:
+          loaded_at_field: timestamp_evento

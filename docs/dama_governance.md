@@ -27,23 +27,48 @@ mínimo no se mergea.
 
 ## 2. Data Modeling & Design — arquitectura de capas
 
+Arquitectura completa de 5 capas + transversal (detalle de decisiones en
+`docs/fase2_arquitectura.md`) — un dataset de BigQuery por capa, porque en
+BigQuery los permisos se otorgan por dataset:
+
 ```
-sources (BigQuery: tb_dim_*, tb_fact_*)
+L0  raw (dataset "ranchos", FUERA de dbt)
+    Réplica exacta de ranchos-7c313:ranchos, poblada por el pipeline EL
+    (BigQuery Data Transfer + Workflow, 3x/día). Inmutable, sin retención.
     │
     ▼
-staging (stg_*)        1:1 con la fuente, solo renombra/castea tipos,
-                        NUNCA hace joins ni agregaciones. Vista.
+L1  staging (stg_*, dataset "stg_ranchos")     VIEW
+    1:1 con la fuente, solo renombra/castea tipos. NUNCA joins ni
+    agregaciones. Nunca se consulta directo desde BI.
     │
     ▼
-intermediate (int_*)   joins/agregaciones reutilizables entre marts.
-                        Ephemeral — no ensucia el dataset con tablas
-                        que nadie consulta directo.
+L2  integración — dos mecanismos, mismo layer conceptual:
+    - intermediate (int_*, EPHEMERAL, sin dataset propio)
+      joins/reglas de negocio/conciliación reutilizables entre marts.
+    - snapshots (dataset "int_ranchos")          TABLE
+      historización SCD tipo 2 de dimensiones que cambian de estado
+      (animal, lote, insumo) — usa el mecanismo nativo `dbt snapshot`,
+      no un modelo intermediate más.
     │
     ▼
-marts (dim_*/fct_*)     modelos finales, organizados por DOMINIO de
-                        negocio (finanzas/leche/hato/veterinaria), no
-                        por tabla fuente. Esto es lo único que BI/
-                        Looker Studio debe consultar.
+L3  marts (dim_*/fct_*, dataset "marts_ranchos")     TABLE
+    Modelo dimensional, esquema estrella, organizado por DOMINIO de
+    negocio (finanzas/leche/hato/veterinaria/insumos), no por tabla
+    fuente. Es el motor del esquema estrella — técnico, no lo
+    consulta BI directo (ver sección 5).
+    │
+    ▼
+L4  reporting (dataset "rpt_ranchos")     VIEW (default) / TABLE (features, alertas)
+    Vistas de negocio con control de acceso sobre marts_ranchos, tablas
+    de features para ML, tablas de alertas destinadas a reverse ETL
+    (ver Fase 6 del documento de especificación). Es lo ÚNICO que BI/
+    Looker Studio/reverse ETL deben consultar.
+
+Transversal: metadata (dataset "metadata_ranchos")
+    Resultados de tests persistidos, histórico de freshness, auditoría
+    de ejecuciones. Se activa en la sección 1 de este documento
+    (Fase 5 del plan) — dataset reservado desde ya, sin escrituras
+    todavía.
 ```
 
 **Naming convention** (obligatoria, verificable por grep):
@@ -51,7 +76,14 @@ marts (dim_*/fct_*)     modelos finales, organizados por DOMINIO de
 - `int_<descripcion>` — ej. `int_pesajes_agrupados_por_dia`
 - `dim_<entidad>` / `fct_<entidad>` — mismo prefijo que ya usa el
   proyecto operacional en BigQuery (`tb_dim_*`/`tb_fact_*`), sin el
-  prefijo `tb_` porque acá ya estamos dentro del contexto dbt.
+  prefijo `tb_` porque acá ya estamos dentro del contexto dbt. Singular,
+  no plural (`dim_animal`, no `dim_animales`) — ver
+  `docs/fase0_inspeccion.md` para la justificación completa de esta
+  elección frente a la alternativa (plural, como ya usa Firestore/raw).
+- `rpt_<descripcion>` en L4 para vistas de negocio; `ft_<descripcion>`
+  para tablas de features de ML; `alerta_<descripcion>` para tablas
+  destinadas a reverse ETL — las 3 conviven en `marts/reporting/`
+  organizadas por dominio, igual que L3.
 
 ## 3. Data Lifecycle Management — versionado histórico
 
@@ -79,7 +111,7 @@ ephemeral/interno) debe tener:
 - `description` en cada columna que no sea 100% autoexplicativa por su
   nombre.
 - Bloque `meta:` con al menos `owner: <email>` y `domain:
-  finanzas|leche|hato|veterinaria`.
+  finanzas|leche|hato|veterinaria|insumos`.
 
 `dbt docs generate` + `dbt docs serve` es la fuente de verdad del
 catálogo de datos — no se mantiene documentación de esquema en un doc
@@ -94,10 +126,15 @@ separado que se desincroniza.
   automatizar un chequeo de "no exponer PII en marts públicos" con un
   test custom.
 - BI/Looker Studio/cualquier herramienta de reporting se conecta
-  **solo** al dataset de `marts` (schema `marts` en BigQuery, ver
-  `+schema: marts` en `dbt_project.yml`) — nunca directo a `staging` ni
-  a las tablas fuente `tb_dim_*`/`tb_fact_*`. Esto es lo que permite
-  refactorizar la capa de staging sin romper dashboards ya publicados.
+  **solo** al dataset `rpt_ranchos` (L4, ver `+schema: rpt_ranchos` en
+  `dbt_project.yml`) — nunca directo a `marts_ranchos` (L3), `stg_ranchos`
+  ni a las tablas fuente `tb_dim_*`/`tb_fact_*` de `ranchos` (L0). L3 es
+  el motor técnico del esquema estrella; L4 es la superficie curada con
+  control de acceso (vistas autorizadas, columnas de costo con policy
+  tags — ver Fase 8 del documento de especificación) que de verdad
+  expone el negocio. Esto es lo que permite refactorizar staging Y marts
+  sin romper dashboards ya publicados, y lo que hace posible dar acceso
+  de reporting sin dar acceso a las 26 tablas fuente crudas.
 
 ## 6. Data Lineage — trazabilidad end-to-end
 
