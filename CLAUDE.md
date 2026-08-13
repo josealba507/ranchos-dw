@@ -284,12 +284,39 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
     analítico), y L0 ya vive en el proyecto de warehouse. Se recomendó
     explícitamente NO crear un tercer proyecto de "solo ingesta" — sin
     beneficio de gobierno real a este volumen/equipo de 1 persona.
-  - **Siguiente paso:** Fase 3 (reglas de staging, sin Punto de Control
-    propio) hacia la Fase 4, deteniéndome en el Punto de Control 2
-    obligatorio — 1 solo hecho de punta a punta (candidato sugerido por
-    el propio documento: `movimientos_insumos`, por ser el hecho
-    transaccional más simple de declarar en una frase) antes de
-    replicar el patrón a los demás dominios.
+  - **Fases 3-4, Punto de Control 2 — completo (2026-08-13)**
+    ([`docs/checkpoint2_movimientos_insumos.md`](docs/checkpoint2_movimientos_insumos.md)):
+    `movimientos_insumos` de punta a punta — staging (3 modelos) →
+    snapshot SCD2 de `dim_insumo` (`snapshots/snapshot_insumo.sql`,
+    estrategia `check` sobre categoria/presentacion/estado, no
+    `timestamp`, porque no hay un campo confiable de última
+    actualización — ver hallazgo de Fase 0) → intermediate (conforma
+    cada movimiento con la versión de insumo vigente AL MOMENTO, no la
+    actual) → `dim_finca`/`dim_fecha` (conformadas, `marts/comun/`) +
+    `dim_insumo`/`fct_movimiento_insumo` (`marts/insumos/`) → 1 vista de
+    reportería (`rpt_movimientos_insumo_recientes`). `dbt build`
+    completo: 69/69 tests. Se agregó el dominio `comun` (dimensiones
+    compartidas por más de un dominio de negocio) a `dbt_project.yml` y
+    `dama_governance.md`, no contemplado en la Fase 2 original.
+    - **2 problemas reales de datos encontrados y corregidos, no bugs de
+      sintaxis:** (1) 20 filas huérfanas en producción real —
+      `finca_asociada` con valores `TEST-DEBUG-*`/`TEST-VERIFICACION-*`,
+      residuos de sesiones de verificación de `ranchos--app` nunca
+      limpiados del todo (coincide con hallazgos previos ya documentados
+      en el CLAUDE.md de ese repo) — excluidos en `staging/` con un
+      filtro documentado, sin tocar `ranchos-7c313`; (2) el join
+      punto-en-el-tiempo del intermediate no matcheaba NINGÚN movimiento
+      real la primera vez, porque `dbt snapshot` no tiene histórico
+      retroactivo — su primera corrida asigna `dbt_valid_from = ahora` a
+      TODAS las versiones, y los 89 movimientos reales del proyecto son
+      anteriores a esa corrida. Se detectó porque se verificaron los
+      datos reales de la vista final (no solo que los tests pasaran) y
+      salían con `insumo_nombre`/`categoria` vacíos — corregido con un
+      fallback a la versión más antigua conocida del insumo cuando no
+      hay coincidencia exacta de vigencia.
+    - **Sin replicar todavía a otros dominios** — Punto de Control 2 del
+      documento exige detenerse acá antes de aplicar el mismo patrón a
+      Finanzas/Leche/Hato/Veterinaria.
 
 ## Prioridades actuales (en orden)
 1. ~~Resolver la migración de datos~~ — **hecho** (histórico completo

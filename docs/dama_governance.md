@@ -105,13 +105,15 @@ reporting), debe declararlo explícitamente en su nombre
 
 ## 4. Metadata Management — documentación como código
 
-Todo modelo (staging + marts, intermediate queda exento por ser
-ephemeral/interno) debe tener:
+Todo modelo (staging + marts + reporting; intermediate queda exento por
+ser ephemeral/interno) debe tener:
 - `description` a nivel de modelo en su `schema.yml`.
 - `description` en cada columna que no sea 100% autoexplicativa por su
   nombre.
 - Bloque `meta:` con al menos `owner: <email>` y `domain:
-  finanzas|leche|hato|veterinaria|insumos`.
+  comun|finanzas|leche|hato|veterinaria|insumos` (`comun` es para
+  dimensiones conformadas — compartidas por más de un dominio de
+  negocio, ej. `dim_finca`/`dim_fecha` — no para hechos).
 
 `dbt docs generate` + `dbt docs serve` es la fuente de verdad del
 catálogo de datos — no se mantiene documentación de esquema en un doc

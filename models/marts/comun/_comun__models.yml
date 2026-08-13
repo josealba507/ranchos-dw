@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: dim_finca
+    description: >
+      Grano: una finca. Dimensión conformada — compartida por todos los
+      dominios de negocio, sin historización.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: comun
+    columns:
+      - name: id_finca
+        description: PK.
+        tests:
+          - unique
+          - not_null
+
+      - name: nombre_finca
+        tests:
+          - unique
+          - not_null
+
+      - name: estado
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Activo', 'Inactivo']
+
+  - name: dim_fecha
+    description: >
+      Grano: un día calendario. Dimensión generada (dbt_utils.date_spine),
+      2020-01-01 a 2035-12-31. ciclo_productivo queda NULL — sin concepto
+      de negocio confirmado todavía (ver docs/fase2_arquitectura.md).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: comun
+    columns:
+      - name: fecha
+        description: PK.
+        tests:
+          - unique
+          - not_null
+
+      - name: estacion
+        description: >
+          Seca (dic-abr) / Lluviosa (may-nov), patrón climático de Panamá
+          confirmado con el usuario el 2026-08-13. Válido mientras el
+          proyecto tenga una sola finca real (Ganadera Alba Guerra) — si
+          se suma una finca de microclima distinto, esta regla dejaría de
+          ser universal.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Seca', 'Lluviosa']
