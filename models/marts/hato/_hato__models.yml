@@ -1,0 +1,151 @@
+version: 2
+
+models:
+  - name: dim_animal
+    description: >
+      Grano — una versión histórica de un animal (SCD2 sobre lote/
+      categoria_animal/estado). id_animal se repite si el animal cambió
+      de versión; sk_animal es la PK real.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: sk_animal
+        tests:
+          - unique
+          - not_null
+
+      - name: id_animal
+        tests:
+          - not_null
+
+      - name: sexo
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Hembra', 'Macho']
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
+
+  - name: dim_lote
+    description: Grano — una versión histórica de un lote de manejo (SCD2 sobre nombre/estado).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: sk_lote
+        tests:
+          - unique
+          - not_null
+
+      - name: id_lote
+        tests:
+          - not_null
+
+  - name: dim_categoria_animal
+    description: Grano — una categoría de animal.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_categoria_animal
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_motivo_salida
+    description: Grano — un motivo de salida.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_motivo
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_parto
+    description: Grano — un nacimiento.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_parto
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_madre
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_animal')
+                field: id_animal
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
+
+  - name: fct_salida
+    description: Grano — una salida/baja de un animal.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_salida
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_animal')
+                field: id_animal
+
+      - name: motivo
+        tests:
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca

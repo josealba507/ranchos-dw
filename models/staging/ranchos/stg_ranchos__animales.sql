@@ -21,9 +21,16 @@ renamed as (
         id_padre,
         padre_tipo,
         fecha_creacion,
-        foto_url
+        foto_url,
+        -- Cambian a lo largo de la vida del animal — su historización SCD2
+        -- vive en snapshots/snapshot_animal.sql (ver docs/dominio_hato.md),
+        -- no acá.
+        lote,
+        categoria_animal
 
     from source
+    -- Ver macros/filtros_datos_prueba.sql.
+    where {{ filtro_finca_prueba_por_nombre() }}
 
 )
 

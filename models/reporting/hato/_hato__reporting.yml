@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: rpt_animales_activos
+    description: >
+      Vista de negocio (L4) — estado actual del hato (dim_animal filtrada
+      a vigente=true y estado='Activo'), no el histórico completo.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: id_animal
+        tests:
+          - not_null
+
+  - name: rpt_nacimientos_recientes
+    description: Vista de negocio (L4) sobre fct_parto.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: fecha_parto
+        tests:
+          - not_null
+
+  - name: rpt_salidas_recientes
+    description: Vista de negocio (L4) sobre fct_salida.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: hato
+    columns:
+      - name: fecha_salida
+        tests:
+          - not_null
