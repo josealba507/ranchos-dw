@@ -314,37 +314,90 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
       salían con `insumo_nombre`/`categoria` vacíos — corregido con un
       fallback a la versión más antigua conocida del insumo cuando no
       hay coincidencia exacta de vigencia.
-    - **Sin replicar todavía a otros dominios** — Punto de Control 2 del
-      documento exige detenerse acá antes de aplicar el mismo patrón a
-      Finanzas/Leche/Hato/Veterinaria.
+  - **Patrón replicado a los 4 dominios restantes — completo (2026-08-13):**
+    Finanzas ([PR #4](https://github.com/josealba507/ranchos-dw/pull/4)),
+    Leche ([PR #5](https://github.com/josealba507/ranchos-dw/pull/5)),
+    Hato ([PR #6](https://github.com/josealba507/ranchos-dw/pull/6)),
+    Veterinaria ([PR #7](https://github.com/josealba507/ranchos-dw/pull/7)).
+    `dbt build` del proyecto completo: **322/322 tests, 0 errores** — 5
+    dominios, 3 dimensiones con SCD2 (insumo, animal, lote), 26 tablas
+    fuente cubiertas.
+    - **Finanzas/Leche referencian la finca por `id_finca`, no
+      `finca_asociada`** — a diferencia de Hato/Veterinaria/Insumos, otra
+      inconsistencia de nombres de columna entre tablas del proyecto
+      operacional (ver `docs/fase0_inspeccion.md`).
+    - **`macros/filtros_datos_prueba.sql`** centraliza la exclusión de
+      datos de prueba de sesiones de verificación de `ranchos--app` que
+      quedaron en producción — 2 macros (por `finca_asociada`/prefijo
+      `TEST-`, y por `id_finca`/lista explícita). Un caso
+      (`finca_trebol`, 4 transacciones con apariencia 100% real: canal
+      `Web-App-Online`, montos reales) se investigó a fondo antes de
+      confirmarlo como dato de prueba con el usuario, no producción real
+      sin sincronizar.
+    - **Hallazgo real más importante de esta ronda —
+      `macros/normalizar_mojibake.sql`:** 192/234 filas de
+      `tb_fact_palpamientos.resultado` y 53/128 de
+      `tb_fact_pesaje_leche.ordeno` en producción real tienen UTF-8 mal
+      re-codificado ("PreÃ±ada" en vez de "Preñada", "MaÃ±ana" en vez de
+      "Mañana") — probablemente del backfill histórico inicial desde
+      Excel (`backfill-hato-alba-guerra.js` en `ranchos--app`). Sin
+      corregirlo, cualquier agregación por esas columnas trataba el
+      mismo valor de negocio como 2 distintos. Normalizado en staging
+      (sin tocar `ranchos-7c313`), verificado con matemática exacta
+      contra BigQuery directo. **Pendiente de decidir con el usuario:**
+      si vale la pena corregir esto también en el origen
+      (`ranchos-7c313`), o si normalizar en el warehouse es suficiente.
+    - **Dominio Hato — 2 dimensiones historizadas SCD2**
+      (`snapshot_animal`/`snapshot_lote`), tal como pide explícitamente
+      la Fase 4 del documento para "Animal" y "Lote / hato".
+      `dim_categoria_animal`/`dim_motivo_salida`/`dim_veterinario`/
+      `dim_medicina`/`dim_motivo_tratamiento`/`dim_catalogo_finanzas`
+      quedaron sin historización — el documento no las nombra
+      explícitamente para SCD2, a diferencia de animal/lote/insumo.
+    - **`tb_fact_salidas` está vacía en producción real** (0 filas) —
+      `rpt_salidas_recientes` no tiene datos todavía, no es un bug.
+    - **Sin enriquecimiento punto-en-el-tiempo en `fct_parto`/
+      `fct_salida`** (a diferencia de `fct_movimiento_insumo` del
+      Checkpoint 2) — decisión de alcance explícita, documentada en cada
+      PR, no hay caso de negocio que lo requiera todavía.
 
 ## Prioridades actuales (en orden)
-1. ~~Resolver la migración de datos~~ — **hecho** (histórico completo
-   migrado 2026-07-21 + actualización continua 3x/día vía Cloud
-   Scheduler + Workflow + BigQuery Data Transfer Service, implementado
-   2026-07-24, ver "Estado actual" arriba). No queda ninguna sub-parte
-   pendiente de este ítem.
-2. **Conducido ahora por el plan de fases del documento de especificación**
-   (ver "Estado actual" arriba) — reemplaza este ítem genérico. Fases 0-2
-   completas; próximo: Fase 3 (reglas de staging) → Fase 4, Punto de
-   Control 2 (`movimientos_insumos` de punta a punta: staging → snapshot/
-   intermediate → dims → fact → 1 vista de `reporting/`) antes de
-   construir la capa `staging/` completa (26 tablas de `sources.yml`,
-   hoy solo hay 1 modelo de referencia) y replicar el patrón al resto de
-   los dominios.
-3. Primeros marts por dominio más allá del hecho de control —
-   probablemente `marts/finanzas` y `marts/leche` después, por ser los
-   dominios con más historia de datos ya cargada en el proyecto
-   operacional (backfills de Ganadera Alba Guerra, ver
-   `ranchos--app/CLAUDE.md`).
-4. `dbt docs generate` + `dbt docs serve` como catálogo de datos navegable,
-   una vez haya suficientes modelos para que valga la pena.
-5. Evaluar automatizar `dbt run`/`dbt test` (Cloud Build, GitHub Actions,
-   o un scheduler simple) en vez de correrlo siempre a mano desde local —
-   todavía sin decidir, no hay urgencia mientras el proyecto sea de un solo
-   desarrollador. Probablemente se resuelve junto con la decisión de
-   actualización continua de la réplica (ítem 1) si se elige un job
-   propio en vez de BigQuery Data Transfer Service nativo.
+1. ~~Resolver la migración de datos~~ — **hecho** (histórico completo +
+   actualización continua 3x/día, ver "Estado actual" arriba).
+2. ~~Fases 0-4 del documento de especificación (arquitectura completa +
+   patrón replicado a los 5 dominios)~~ — **hecho** (2026-08-13, ver
+   "Estado actual" arriba). `dbt build` del proyecto completo: 322/322
+   tests.
+3. **Siguiente paso, sin arrancar todavía — Fase 5 en adelante del
+   documento de especificación:**
+   - Fase 5 (calidad de datos): persistencia de fallos de tests en el
+     dataset `metadata_ranchos` (reservado, sin uso todavía —
+     `store_failures`), detección automática de anomalías (volumen/
+     frescura/distribución) que cubra el caso "una colección dejó de
+     sincronizar sin ningún error".
+   - Fase 6 (alarmas): separar alarmas técnicas (canal del equipo) de
+     alarmas de negocio (reverse ETL hacia una colección de Firestore —
+     requiere tocar `ranchos--app`, con confirmación explícita cuando
+     llegue el momento).
+   - Fase 7 (ML): bloqueada parcialmente por el hallazgo de
+     `timestamp_registro` sin `serverTimestamp()` real (ver "Estado
+     actual" arriba) — requiere decidir primero si se acepta la
+     aproximación actual o se pide un cambio aditivo en
+     `functions/src/index.ts` de `ranchos--app`.
+   - Fase 8 (optimización/costo): particionado ya viene heredado de las
+     fact tables origen; falta evaluar vistas materializadas, policy
+     tags sobre columnas de costo, y vistas autorizadas para L4.
+4. **Pendiente de decidir con el usuario, no bloqueante:** si el
+   mojibake encontrado en `resultado`/`ordeno` (ver "Estado actual")
+   vale la pena corregirlo también en `ranchos-7c313` (origen), o si
+   normalizarlo en el warehouse alcanza.
+5. `dbt docs generate` + `dbt docs serve` como catálogo de datos
+   navegable — ya hay suficientes modelos (37) para que valga la pena.
+6. Evaluar automatizar `dbt run`/`dbt test`/`dbt snapshot` (Cloud Build,
+   GitHub Actions, o un scheduler simple) en vez de correrlo siempre a
+   mano desde local — más urgente ahora que existen 3 snapshots que
+   necesitan correr con regularidad para que la historización SCD2
+   tenga sentido (hoy solo se corrieron manualmente, una vez cada uno).
 
 ## Cómo trabajar conmigo en este proyecto
 Mismo criterio de colaboración que ya está establecido en `ranchos--app`
