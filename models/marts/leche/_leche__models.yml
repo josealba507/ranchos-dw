@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: fct_venta_leche
+    description: >
+      Grano — una entrega/venta de leche. Los 5 valores derivados son
+      fuente de verdad server-side (calcularEntregaLeche/
+      corregirEntregaLeche de ranchos--app), nunca recalculados acá.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_pago
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: id_finca
+
+      - name: litros_entrega
+        tests:
+          - not_null
+
+      - name: valor_entrega_neta
+        tests:
+          - not_null
+
+  - name: fct_microbiologia_leche
+    description: Grano — una muestra de microbiología.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_muestra
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: id_finca
+
+  - name: fct_composicion_leche
+    description: Grano — una muestra de composición.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_muestra
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: id_finca

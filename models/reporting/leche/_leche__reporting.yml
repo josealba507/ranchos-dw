@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: rpt_entregas_leche_recientes
+    description: Vista de negocio (L4) sobre fct_venta_leche.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: fecha_pago
+        tests:
+          - not_null
+
+      - name: nombre_finca
+        tests:
+          - not_null
+
+  - name: rpt_calidad_leche_reciente
+    description: >
+      Vista de negocio (L4) que combina microbiología y composición por
+      finca+fecha — 2 fact tables independientes con el mismo grano de
+      negocio (calidad de una muestra).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: fecha_muestra
+        tests:
+          - not_null
+
+      - name: nombre_finca
+        tests:
+          - not_null
