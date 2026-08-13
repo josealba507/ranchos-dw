@@ -46,12 +46,8 @@ renamed as (
 
     from source
     where estado_registro = '{{ var("estado_registro_vigente") }}'
-    -- Excluye residuos de sesiones de verificación de ranchos--app
-    -- (fincas de prueba con prefijo TEST-, nunca limpiadas del todo en
-    -- producción — ver docs/fase0_inspeccion.md y el comentario
-    -- equivalente en stg_ranchos__catalogo_insumos.sql). No es lógica
-    -- de negocio real.
-    and finca_asociada not like 'TEST-%'
+    -- Ver macros/filtros_datos_prueba.sql.
+    and {{ filtro_finca_prueba_por_nombre() }}
 
 )
 

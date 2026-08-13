@@ -185,3 +185,91 @@ models:
               arguments:
                 to: source('ranchos', 'tb_dim_fincas')
                 field: nombre_finca
+
+  - name: stg_ranchos__catalogo_finanzas
+    description: >
+      Passthrough de tb_dim_catalogo_finanzas — taxonomía de categoría/
+      clase de gasto por finca (ver CLAUDE.md de ranchos--app, "Catálogo
+      de Finanzas editable"). tipo_transaccion (Entrada/Inversion/Salida)
+      NO es parte del catálogo editable — son los 3 botones fijos del
+      formulario.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: finanzas
+    columns:
+      - name: id_item
+        description: PK — igual al docId de Firestore.
+        tests:
+          - unique
+          - not_null
+
+      - name: tipo_transaccion
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Entrada', 'Inversion', 'Salida']
+
+      - name: estado
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Activo', 'Inactivo']
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__transacciones_financieras
+    description: >
+      Passthrough de tb_fact_transacciones_financieras — movimientos de
+      Finanzas (Entrada/Inversion/Salida). Grano: un movimiento. Filtrado
+      a estado_registro='Activo'. A diferencia del resto de las fact
+      tables del proyecto, referencia la finca por id_finca, no
+      finca_asociada (ver docs/fase0_inspeccion.md).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: finanzas
+    columns:
+      - name: id_registro
+        description: PK.
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_transaccion
+        description: >
+          Fecha de negocio (contable) — distinta de timestamp_registro.
+          Es la que particiona el hecho.
+        tests:
+          - not_null
+
+      - name: id_finca
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: id_finca
+
+      - name: tipo_transaccion
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Entrada', 'Inversion', 'Salida']
+
+      - name: monto_total
+        description: >
+          NUMERIC, no centavos enteros — decisión ya tomada por el
+          proyecto operacional (ver docs/fase0_inspeccion.md,
+          inconsistencia 1).
+        tests:
+          - not_null
