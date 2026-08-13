@@ -1,0 +1,164 @@
+version: 2
+
+models:
+  - name: dim_veterinario
+    description: Grano — un veterinario.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_veterinario
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_medicina
+    description: Grano — una medicina.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_medicina
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_motivo_tratamiento
+    description: Grano — un motivo de tratamiento.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_motivo
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_palpamiento
+    description: Grano — un palpamiento (diagnóstico reproductivo).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_palpamiento
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_animal')
+                field: id_animal
+
+      - name: resultado
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Preñada', 'Vacía Ciclando', 'Vacía Anestro']
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
+
+  - name: fct_tratamiento
+    description: Grano — un tratamiento veterinario.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_tratamiento
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_animal')
+                field: id_animal
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
+
+  - name: fct_pesaje
+    description: Grano — un pesaje por animal por ordeño.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_pesaje
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: ordeno
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Mañana', 'Tarde']
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_animal')
+                field: id_animal
+
+      - name: litros
+        tests:
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
