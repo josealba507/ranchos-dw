@@ -1,0 +1,94 @@
+version: 2
+
+models:
+  - name: dim_insumo
+    description: >
+      Grano: una versión histórica de un insumo (SCD tipo 2 sobre
+      categoria/presentacion/estado — ver snapshots/snapshot_insumo.sql).
+      id_insumo se repite si el insumo cambió de versión; sk_insumo es la
+      PK real de esta tabla.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: insumos
+    columns:
+      - name: sk_insumo
+        description: PK — surrogate key generado por dbt snapshot (dbt_scd_id).
+        tests:
+          - unique
+          - not_null
+
+      - name: id_insumo
+        description: Natural key del insumo — NO es único en esta tabla (SCD2).
+        tests:
+          - not_null
+
+      - name: estado
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Activo', 'Inactivo']
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
+
+  - name: fct_movimiento_insumo
+    description: >
+      Grano: un movimiento de inventario de un insumo (tipo_movimiento:
+      inicial/compra/conteo/merma/ajuste). Cada fila conserva la
+      categoria/presentacion/estado del insumo VIGENTES AL MOMENTO del
+      movimiento (ver models/intermediate/int_movimientos_insumos_con_insumo_historico.sql),
+      no los valores actuales.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: insumos
+    columns:
+      - name: id_registro
+        description: PK.
+        tests:
+          - unique
+          - not_null
+
+      - name: id_insumo
+        description: FK al insumo — matchea contra id_insumo de dim_insumo (no único ahí, pero sí existente).
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_insumo')
+                field: id_insumo
+
+      - name: tipo_movimiento
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['inicial', 'compra', 'conteo', 'merma', 'ajuste']
+
+      - name: fecha_movimiento
+        description: Fecha de negocio — FK a dim_fecha, nunca timestamp_registro.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_finca')
+                field: nombre_finca
+
+      - name: cantidad_base
+        tests:
+          - not_null

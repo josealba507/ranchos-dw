@@ -55,3 +55,133 @@ models:
           2026-07-23: el ALTER TABLE de PR #84 de ranchos--app nunca había
           corrido en producción hasta ese fix (ver "Estado actual del
           proyecto" en CLAUDE.md de este repo).
+
+  - name: stg_ranchos__fincas
+    description: >
+      Passthrough de tb_dim_fincas — entidad multi-tenant raíz del
+      proyecto. Sin estado_registro (no es fact table, no versiona
+      correcciones por fila).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: comun
+    columns:
+      - name: id_finca
+        description: PK — igual al docId de Firestore (regla dura desde PR #48 de ranchos--app).
+        tests:
+          - unique
+          - not_null
+
+      - name: nombre_finca
+        description: Nombre comercial — es el campo que el resto de las tablas usan como FK textual (finca_asociada), no id_finca.
+        tests:
+          - unique
+          - not_null
+
+      - name: estado
+        description: Activo/Inactivo.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Activo', 'Inactivo']
+
+  - name: stg_ranchos__catalogo_insumos
+    description: >
+      Passthrough de tb_dim_catalogo_insumos — catálogo de insumos por
+      finca (Fase 1 del Módulo de Insumos, ver CLAUDE.md de ranchos--app).
+      categoria/presentacion/estado son mutables — su historización vive
+      en snapshots/snapshot_insumo.sql, no acá.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: insumos
+    columns:
+      - name: id_insumo
+        description: PK — igual al docId de Firestore.
+        tests:
+          - unique
+          - not_null
+
+      - name: unidad_base
+        description: >
+          Inmutable después de creado (firestore.rules lo exige). Una de
+          las 5 unidades fijas del sistema (lb/kg/ml/L/unidad) o una
+          unidad custom por finca (catalogo_unidades_insumos).
+        tests:
+          - not_null
+
+      - name: estado
+        description: Activo/Inactivo.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Activo', 'Inactivo']
+
+      - name: finca_asociada
+        description: Finca dueña del insumo — inmutable después de creado.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__movimientos_insumos
+    description: >
+      Passthrough de tb_fact_movimientos_insumos — el ledger inmutable de
+      movimientos de inventario (inicial/compra/conteo/merma/ajuste, ver
+      CLAUDE.md de ranchos--app, sección Módulo de Insumos). Grano: un
+      movimiento. Filtrado a estado_registro='Activo' (docs/dama_governance.md
+      sección 3).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: insumos
+    columns:
+      - name: id_registro
+        description: PK — igual al docId de Firestore.
+        tests:
+          - unique
+          - not_null
+
+      - name: id_insumo
+        description: FK al insumo afectado por el movimiento.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_catalogo_insumos')
+                field: id_insumo
+
+      - name: tipo_movimiento
+        description: inicial/compra/conteo/merma/ajuste.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['inicial', 'compra', 'conteo', 'merma', 'ajuste']
+
+      - name: fecha_movimiento
+        description: >
+          Fecha de negocio (cuándo ocurrió el movimiento en la finca) —
+          distinta de timestamp_registro (cuándo se capturó en el
+          dispositivo, ver docs/fase0_inspeccion.md sección 0.3). Es la
+          que particiona el hecho, nunca timestamp_registro.
+        tests:
+          - not_null
+
+      - name: cantidad_base
+        description: Cantidad del movimiento, siempre expresada en unidad_base del insumo.
+        tests:
+          - not_null
+
+      - name: finca_asociada
+        description: Finca dueña del movimiento — inmutable después de creado.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca

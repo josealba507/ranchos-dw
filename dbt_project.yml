@@ -52,6 +52,8 @@ models:
     marts:
       +materialized: table
       +schema: marts_ranchos
+      comun:
+        +tags: ['comun']
       finanzas:
         +tags: ['finanzas']
       leche:
