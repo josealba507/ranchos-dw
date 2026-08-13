@@ -197,6 +197,187 @@ models:
                 to: source('ranchos', 'tb_dim_fincas')
                 field: nombre_finca
 
+  - name: stg_ranchos__catalogo_veterinarios
+    description: Passthrough de tb_dim_catalogo_veterinarios. Solo alta automática — sin historización SCD2.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_veterinario
+        tests:
+          - unique
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__catalogo_medicinas
+    description: Passthrough de tb_dim_catalogo_medicinas. Solo alta automática — sin historización SCD2.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_medicina
+        tests:
+          - unique
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__catalogo_motivos_tratamiento
+    description: Passthrough de tb_dim_catalogo_motivos_tratamiento. Solo alta automática — sin historización SCD2.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_motivo
+        tests:
+          - unique
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__palpamientos
+    description: >
+      Passthrough de tb_fact_palpamientos. Grano — un palpamiento
+      (diagnóstico reproductivo). fecha_parto_esperada es un estimado
+      client-side de ranchos--app (283 − días de gestación), sin
+      sensibilidad financiera — se conserva tal cual, nunca se recalcula.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_palpamiento
+        tests:
+          - not_null
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_animales')
+                field: id_animal
+
+      - name: resultado
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Preñada', 'Vacía Ciclando', 'Vacía Anestro']
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__tratamientos
+    description: Passthrough de tb_fact_tratamientos. Grano — un tratamiento veterinario.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_tratamiento
+        tests:
+          - not_null
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_animales')
+                field: id_animal
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
+  - name: stg_ranchos__pesaje_leche
+    description: >
+      Passthrough de tb_fact_pesaje_leche. Grano — un pesaje por animal
+      por ordeño. Distinto (grano más fino) que tb_fact_venta_leche, que
+      es a nivel finca.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: id_registro
+        tests:
+          - unique
+          - not_null
+
+      - name: fecha_pesaje
+        tests:
+          - not_null
+
+      - name: ordeno
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Mañana', 'Tarde']
+
+      - name: id_animal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_animales')
+                field: id_animal
+
+      - name: litros
+        tests:
+          - not_null
+
+      - name: finca_asociada
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('ranchos', 'tb_dim_fincas')
+                field: nombre_finca
+
   - name: stg_ranchos__fincas
     description: >
       Passthrough de tb_dim_fincas — entidad multi-tenant raíz del

@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: rpt_palpamientos_recientes
+    description: Vista de negocio (L4) sobre fct_palpamiento.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: fecha_palpamiento
+        tests:
+          - not_null
+
+  - name: rpt_tratamientos_recientes
+    description: Vista de negocio (L4) sobre fct_tratamiento.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: fecha_tratamiento
+        tests:
+          - not_null
+
+  - name: rpt_pesaje_resumen_diario
+    description: >
+      Vista de negocio (L4) — agrupa fct_pesaje por animal+día, mismo
+      criterio de agrupación que ranchos--app (nunca un solo ordeño
+      suelto).
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: fecha_pesaje
+        tests:
+          - not_null
+
+      - name: litros_totales_dia
+        tests:
+          - not_null
