@@ -78,6 +78,13 @@ models:
       insumos:
         +tags: ['insumos', 'reporting']
 
+  # Elementary (detección de anomalías, ver docs/fase5_anomalias_elementary.md)
+  # escribe en el mismo dataset reservado para metadata desde la Fase 2
+  # (metadata_ranchos) — mismo lugar que los store_failures de los tests
+  # de reconciliación, en vez de un dataset "elementary" separado.
+  elementary:
+    +schema: metadata_ranchos
+
 seeds:
   ranchos_dw:
     +schema: seeds_ranchos

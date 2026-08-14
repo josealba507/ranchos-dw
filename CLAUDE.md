@@ -379,11 +379,25 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
    rompían el mecanismo de freshness de dbt-bigquery, que exige
    `TIMESTAMP`. `metadata_ranchos` (reservado desde la Fase 2) ya
    recibe escrituras reales vía `store_failures`, confirmado con `bq ls`.
-   `dbt build`: 348/348 tests. **Queda pendiente de la Fase 5 completa:**
-   detección automática de anomalías (volumen/distribución), y las
-   dimensiones de calidad que aplican dentro del warehouse
-   (staging→marts) en vez de a la pregunta puntual "¿se copió Firestore
-   a raw?" que esta ronda respondió.
+   `dbt build`: 348/348 tests.
+   - ~~Detección automática de anomalías~~ — **hecho (2026-08-13)**
+     ([`docs/fase5_anomalias_elementary.md`](docs/fase5_anomalias_elementary.md)):
+     paquete `elementary-data/elementary` (0.25.1), elegido sobre
+     construir algo casero con `dbt_expectations` — confirmado con el
+     usuario. Escribe en `metadata_ranchos` (junto a la reconciliación).
+     3 tests (`volume_anomalies`/`freshness_anomalies`/
+     `all_columns_anomalies`) aplicados a las 26 tablas de `sources.yml`
+     — 78 tests, todos PASS en el rollout completo. **Sin historial
+     acumulado todavía no detecta anomalías reales** — depende
+     directamente del ítem 6 de abajo (automatizar corridas de dbt).
+     Hallazgo de paso: el paquete registra sus propios hooks
+     `on-run-start`/`on-run-end` solo, sin necesitar configuración
+     manual en `dbt_project.yml`.
+   - **Queda pendiente de la Fase 5 completa:** las dimensiones de
+     calidad que aplican dentro del warehouse (staging→marts, ej.
+     Exactitud/Consistencia del ledger de insumos) en vez de a la
+     pregunta puntual "¿se copió Firestore a raw?" que esta ronda
+     respondió.
    - Fase 6 (alarmas): separar alarmas técnicas (canal del equipo) de
      alarmas de negocio (reverse ETL hacia una colección de Firestore —
      requiere tocar `ranchos--app`, con confirmación explícita cuando

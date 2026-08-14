@@ -78,6 +78,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_fincas')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_roles
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -85,6 +101,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_roles')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_usuarios
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -92,6 +124,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_usuarios')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
 
       # --- Finanzas ---
       - name: tb_dim_catalogo_finanzas
@@ -101,6 +149,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_finanzas')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_transacciones_financieras
         config:
           loaded_at_field: timestamp_registro
@@ -111,6 +175,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_transacciones_financieras')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
 
       # --- Venta de Leche ---
       - name: tb_fact_venta_leche
@@ -123,6 +203,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_venta_leche')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_microbiologia_leche
         config:
           loaded_at_field: timestamp_registro
@@ -133,6 +229,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_microbiologia_leche')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_composicion_leche
         config:
           loaded_at_field: timestamp_registro
@@ -143,6 +255,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_composicion_leche')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
 
       # --- Hato (inventario, nacimientos, salidas, catálogos) ---
       - name: tb_dim_animales
@@ -152,6 +280,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_animales')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_catalogo_lotes
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -159,6 +303,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_lotes')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_catalogo_categorias_animal
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -166,6 +326,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_categorias_animal')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_catalogo_motivos_salida
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -173,6 +349,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_motivos_salida')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_partos
         config:
           loaded_at_field: timestamp_registro
@@ -183,6 +375,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_partos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_salidas
         config:
           loaded_at_field: timestamp_registro
@@ -193,6 +401,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_salidas')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
 
       # --- Veterinaria (palpamiento, tratamiento, pesaje) ---
       - name: tb_dim_catalogo_veterinarios
@@ -202,6 +426,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_veterinarios')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_catalogo_medicinas
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -209,6 +449,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_medicinas')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_catalogo_motivos_tratamiento
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -216,6 +472,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_motivos_tratamiento')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_palpamientos
         config:
           loaded_at_field: timestamp_registro
@@ -226,6 +498,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_palpamientos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_tratamientos
         config:
           loaded_at_field: timestamp_registro
@@ -236,6 +524,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_tratamientos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_pesaje_leche
         config:
           loaded_at_field: timestamp_registro
@@ -246,6 +550,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_pesaje_leche')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
 
       # --- Insumos (inventario, catálogos, movimientos, consumo) ---
       - name: tb_dim_catalogo_insumos
@@ -255,6 +575,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_insumos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_catalogo_categorias_insumos
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -262,6 +598,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_categorias_insumos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_dim_catalogo_unidades_insumos
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -269,6 +621,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_unidades_insumos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: fecha_creacion
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_movimientos_insumos
         config:
           loaded_at_field: timestamp_registro
@@ -279,6 +647,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_movimientos_insumos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
       - name: tb_fact_periodos_consumo_insumos
         config:
           loaded_at_field: timestamp_registro
@@ -289,6 +673,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_periodos_consumo_insumos')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
 
       # --- Auditoría ---
       - name: tb_fact_logs_actividad
@@ -301,6 +701,22 @@ sources:
           - reconciliacion_conteo_raw_vs_operacional:
               arguments:
                 tabla_operacional: source('ranchos_operacional', 'tb_fact_logs_actividad')
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: timestamp_evento
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: timestamp_evento
+              config:
+                tags: ['elementary']
+                severity: warn
+          - elementary.all_columns_anomalies:
+              config:
+                tags: ['elementary']
+                severity: warn
 
   # Fuente operacional REAL (ranchos-7c313) — usada EXCLUSIVAMENTE para
   # los tests de reconciliación de arriba, nunca para construir modelos
