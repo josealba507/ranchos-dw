@@ -7,8 +7,8 @@ version: 2
 #
 # Este dataset es la capa L0 (raw) del warehouse — una RÉPLICA analítica del
 # dataset operacional real (ranchos-7c313:ranchos) dentro del proyecto del
-# DW (alba-analytics-ganaderia), no una lectura cross-project directa.
-# Migrado por primera vez (histórico completo, `bq cp` tabla por tabla) el
+# DW (alba-analytics-ganaderia), no una lectura cross-project directa. Migrado
+# por primera vez (histórico completo, `bq cp` tabla por tabla) el
 # 2026-07-21; actualizada 3x/día (8am/1pm/8pm hora Panamá) vía BigQuery Data
 # Transfer Service ("Dataset Copy", overwrite completo — necesario porque las
 # fact tables versionan correcciones Activo→Corregido, no solo agregan
@@ -23,6 +23,38 @@ version: 2
 # usan fecha_creacion, pero tb_dim_fincas usa fecha_registro; la mayoría de
 # las tb_fact_* usan timestamp_registro, pero tb_fact_logs_actividad usa
 # timestamp_evento. No copiar el patrón de otra tabla sin verificar.
+#
+# freshness: 2 niveles, no un único umbral para las 26 tablas — probado
+# empíricamente (primera corrida real con 3/10 días parejo para todas
+# marcó 18 de 26 como stale, la mayoría catálogos que por diseño casi no
+# cambian, ej. tb_dim_fincas con 1 sola fila desde siempre). Default del
+# source (dims/catálogos, bajo movimiento por naturaleza): warn 14 días /
+# error 45 días. Override más ajustado en cada tabla tb_fact_* (captura
+# operacional activa): warn 5 días / error 14 días. Ninguno de los 2 es un
+# valor calibrado contra el patrón real de actividad de este ranch en
+# particular — es un punto de partida técnicamente razonable (dim/catálogo
+# vs. fact), a ajustar con el usuario si en la práctica sigue generando
+# falsos positivos/negativos por tabla. Una tabla sin ninguna fila todavía
+# (ej. tb_fact_salidas, ver docs/fase0_inspeccion.md) no tiene un
+# "loaded_at_field" que evaluar — dbt lo reporta como no computable, no
+# como una corrida rota.
+#
+# loaded_at_field de las tablas DIM (fecha_creacion/fecha_registro) va
+# envuelto en un CAST a TIMESTAMP: son columnas DATE en el esquema real
+# (ver arriba), y el mecanismo de source freshness de dbt-bigquery exige
+# TIMESTAMP — sin el cast, falla con "Database Error" en vez de calcular
+# un estado real de frescura.
+#
+# tests de reconciliación (Fase 5 del documento de especificación —
+# "Conciliación: conteo de registros... contra documentos únicos en raw"):
+# cada tabla compara su conteo de filas EXACTO contra la tabla
+# correspondiente en el source `ranchos_operacional` (ranchos-7c313, la
+# fuente real que alimentan las Cloud Functions de ranchos--app) — ver
+# tests/generic/test_reconciliacion_conteo_raw_vs_operacional.sql. Falla si
+# no coinciden, lo cual sería la señal de que la réplica EL (BigQuery Data
+# Transfer) dejó de copiar algo. Los resultados de este test se persisten en
+# el dataset metadata_ranchos (store_failures) para tener un histórico
+# consultable de estas verificaciones, no solo una alarma puntual.
 sources:
   - name: ranchos
     database: alba-analytics-ganaderia
@@ -33,95 +65,282 @@ sources:
       Analítica). Cada fact table versiona históricamente
       (estado_registro: Activo/Corregido/Anulado) en vez de hacer UPDATE
       in-place.
+    config:
+      freshness:
+        warn_after: {count: 14, period: day}
+        error_after: {count: 45, period: day}
     tables:
       # --- Dimensiones núcleo (fincas/roles/usuarios) ---
       - name: tb_dim_fincas
         config:
-          loaded_at_field: fecha_registro
+          loaded_at_field: "cast(fecha_registro as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_fincas')
       - name: tb_dim_roles
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_roles')
       - name: tb_dim_usuarios
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_usuarios')
 
       # --- Finanzas ---
       - name: tb_dim_catalogo_finanzas
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_finanzas')
       - name: tb_fact_transacciones_financieras
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_transacciones_financieras')
 
       # --- Venta de Leche ---
       - name: tb_fact_venta_leche
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_venta_leche')
       - name: tb_fact_microbiologia_leche
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_microbiologia_leche')
       - name: tb_fact_composicion_leche
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_composicion_leche')
 
       # --- Hato (inventario, nacimientos, salidas, catálogos) ---
       - name: tb_dim_animales
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_animales')
       - name: tb_dim_catalogo_lotes
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_lotes')
       - name: tb_dim_catalogo_categorias_animal
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_categorias_animal')
       - name: tb_dim_catalogo_motivos_salida
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_motivos_salida')
       - name: tb_fact_partos
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_partos')
       - name: tb_fact_salidas
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_salidas')
 
       # --- Veterinaria (palpamiento, tratamiento, pesaje) ---
       - name: tb_dim_catalogo_veterinarios
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_veterinarios')
       - name: tb_dim_catalogo_medicinas
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_medicinas')
       - name: tb_dim_catalogo_motivos_tratamiento
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_motivos_tratamiento')
       - name: tb_fact_palpamientos
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_palpamientos')
       - name: tb_fact_tratamientos
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_tratamientos')
       - name: tb_fact_pesaje_leche
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_pesaje_leche')
 
       # --- Insumos (inventario, catálogos, movimientos, consumo) ---
       - name: tb_dim_catalogo_insumos
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_insumos')
       - name: tb_dim_catalogo_categorias_insumos
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_categorias_insumos')
       - name: tb_dim_catalogo_unidades_insumos
         config:
-          loaded_at_field: fecha_creacion
+          loaded_at_field: "cast(fecha_creacion as timestamp)"
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_dim_catalogo_unidades_insumos')
       - name: tb_fact_movimientos_insumos
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_movimientos_insumos')
       - name: tb_fact_periodos_consumo_insumos
         config:
           loaded_at_field: timestamp_registro
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_periodos_consumo_insumos')
 
       # --- Auditoría ---
       - name: tb_fact_logs_actividad
         config:
           loaded_at_field: timestamp_evento
+          freshness:
+            warn_after: {count: 5, period: day}
+            error_after: {count: 14, period: day}
+        tests:
+          - reconciliacion_conteo_raw_vs_operacional:
+              arguments:
+                tabla_operacional: source('ranchos_operacional', 'tb_fact_logs_actividad')
+
+  # Fuente operacional REAL (ranchos-7c313) — usada EXCLUSIVAMENTE para
+  # los tests de reconciliación de arriba, nunca para construir modelos
+  # (ningún staging/marts/reporting debe referenciar este source —
+  # rompería la separación operacional/analítica documentada en
+  # docs/fase2_arquitectura.md). Existe para poder escribir
+  # `{{ source('ranchos_operacional', '...') }}` en vez de hardcodear
+  # `ranchos-7c313.ranchos.tabla` en el SQL del test (docs/dama_governance.md
+  # sección 6: nunca un nombre de proyecto/dataset crudo en el SQL).
+  - name: ranchos_operacional
+    database: ranchos-7c313
+    schema: ranchos
+    description: >
+      Dataset operacional REAL de ranchos-7c313 — no una réplica. Fuente de
+      verdad contra la que se reconcilia raw (source `ranchos`, arriba).
+      Solo lectura, solo para tests — ver comentario completo arriba.
+    tables:
+      - name: tb_dim_fincas
+      - name: tb_dim_roles
+      - name: tb_dim_usuarios
+      - name: tb_dim_catalogo_finanzas
+      - name: tb_fact_transacciones_financieras
+      - name: tb_fact_venta_leche
+      - name: tb_fact_microbiologia_leche
+      - name: tb_fact_composicion_leche
+      - name: tb_dim_animales
+      - name: tb_dim_catalogo_lotes
+      - name: tb_dim_catalogo_categorias_animal
+      - name: tb_dim_catalogo_motivos_salida
+      - name: tb_fact_partos
+      - name: tb_fact_salidas
+      - name: tb_dim_catalogo_veterinarios
+      - name: tb_dim_catalogo_medicinas
+      - name: tb_dim_catalogo_motivos_tratamiento
+      - name: tb_fact_palpamientos
+      - name: tb_fact_tratamientos
+      - name: tb_fact_pesaje_leche
+      - name: tb_dim_catalogo_insumos
+      - name: tb_dim_catalogo_categorias_insumos
+      - name: tb_dim_catalogo_unidades_insumos
+      - name: tb_fact_movimientos_insumos
+      - name: tb_fact_periodos_consumo_insumos
+      - name: tb_fact_logs_actividad

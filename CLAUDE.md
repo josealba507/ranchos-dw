@@ -368,13 +368,22 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
    patrón replicado a los 5 dominios)~~ — **hecho** (2026-08-13, ver
    "Estado actual" arriba). `dbt build` del proyecto completo: 322/322
    tests.
-3. **Siguiente paso, sin arrancar todavía — Fase 5 en adelante del
-   documento de especificación:**
-   - Fase 5 (calidad de datos): persistencia de fallos de tests en el
-     dataset `metadata_ranchos` (reservado, sin uso todavía —
-     `store_failures`), detección automática de anomalías (volumen/
-     frescura/distribución) que cubra el caso "una colección dejó de
-     sincronizar sin ningún error".
+3. ~~Fase 5 — reconciliación raw vs. Firestore~~ — **hecho, parcial
+   (2026-08-13)** ([`docs/fase5_reconciliacion_raw.md`](docs/fase5_reconciliacion_raw.md)):
+   26 tests de reconciliación de conteo (`raw` vs. source nuevo
+   `ranchos_operacional`, que apunta a `ranchos-7c313` real — no una
+   réplica) confirman que la réplica EL es 100% fiel hoy. `dbt source
+   freshness` pasó de "no computa nada" (sin umbrales configurados) a
+   funcionar con 2 niveles (dims 14d/45d, facts 5d/14d) — encontrado y
+   corregido de paso un bug real: las columnas `DATE` de las dims
+   rompían el mecanismo de freshness de dbt-bigquery, que exige
+   `TIMESTAMP`. `metadata_ranchos` (reservado desde la Fase 2) ya
+   recibe escrituras reales vía `store_failures`, confirmado con `bq ls`.
+   `dbt build`: 348/348 tests. **Queda pendiente de la Fase 5 completa:**
+   detección automática de anomalías (volumen/distribución), y las
+   dimensiones de calidad que aplican dentro del warehouse
+   (staging→marts) en vez de a la pregunta puntual "¿se copió Firestore
+   a raw?" que esta ronda respondió.
    - Fase 6 (alarmas): separar alarmas técnicas (canal del equipo) de
      alarmas de negocio (reverse ETL hacia una colección de Firestore —
      requiere tocar `ranchos--app`, con confirmación explícita cuando
