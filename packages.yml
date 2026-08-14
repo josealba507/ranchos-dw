@@ -11,3 +11,13 @@ packages:
   # metaplane — mismo namespace de macros, drop-in replacement.)
   - package: metaplane/dbt_expectations
     version: [">=0.10.0", "<0.11.0"]
+
+  # Detección automática de anomalías (Fase 5 del documento de
+  # especificación: "detección automática de anomalías sobre volumen de
+  # filas, frescura y distribución de columnas" — complementa la
+  # reconciliación exacta y el source freshness ya implementados, ver
+  # docs/fase5_reconciliacion_raw.md). Compara contra el patrón histórico
+  # real acumulado en corridas sucesivas de dbt, no contra umbrales fijos
+  # adivinados. Ver docs/fase5_anomalias_elementary.md.
+  - package: elementary-data/elementary
+    version: [">=0.25.0", "<0.26.0"]
