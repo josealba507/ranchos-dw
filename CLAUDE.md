@@ -393,11 +393,20 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      Hallazgo de paso: el paquete registra sus propios hooks
      `on-run-start`/`on-run-end` solo, sin necesitar configuración
      manual en `dbt_project.yml`.
-   - **Queda pendiente de la Fase 5 completa:** las dimensiones de
-     calidad que aplican dentro del warehouse (staging→marts, ej.
-     Exactitud/Consistencia del ledger de insumos) en vez de a la
-     pregunta puntual "¿se copió Firestore a raw?" que esta ronda
-     respondió.
+   - ~~Exactitud del ledger de Insumos vs. saldo cacheado~~ — **hecho
+     (2026-08-13)** ([`docs/fase5_exactitud_insumos.md`](docs/fase5_exactitud_insumos.md)):
+     `tests/exactitud_existencia_insumo_vs_ledger.sql` reconcilia
+     `SUM(cantidad_base)` de `movimientos_insumos` contra
+     `existencia_actual` de `catalogo_insumos` — cierra la fila
+     "Accuracy (exactitud)" de `docs/dama_governance.md`, hasta ahora
+     aspiracional (sin test real detrás). Confirmado empíricamente antes
+     de escribirlo (no asumido) que `cantidad_base` ya trae su propio
+     signo por `tipo_movimiento` — no hace falta signar en el test.
+     Consistencia (huérfanos fact→dim) ya estaba cubierta por los tests
+     `relationships` nativos desde que se construyó el dominio Insumos —
+     no requirió trabajo nuevo. Con esto no queda ninguna dimensión de
+     `dama_governance.md` sin al menos un test real que la implemente —
+     Fase 5 queda completa.
    - Fase 6 (alarmas): separar alarmas técnicas (canal del equipo) de
      alarmas de negocio (reverse ETL hacia una colección de Firestore —
      requiere tocar `ranchos--app`, con confirmación explícita cuando
