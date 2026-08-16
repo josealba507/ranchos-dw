@@ -1,0 +1,9 @@
+# infra/ SÍ se incluye en el build context (a propósito) — el Dockerfile
+# necesita infra/docker/profiles.yml. Solo se excluye lo pesado/irrelevante
+# para el build, nunca directorios completos que el Dockerfile referencia.
+.git
+.venv
+target
+dbt_packages
+logs
+.vscode

@@ -425,11 +425,23 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
    normalizarlo en el warehouse alcanza.
 5. `dbt docs generate` + `dbt docs serve` como catálogo de datos
    navegable — ya hay suficientes modelos (37) para que valga la pena.
-6. Evaluar automatizar `dbt run`/`dbt test`/`dbt snapshot` (Cloud Build,
-   GitHub Actions, o un scheduler simple) en vez de correrlo siempre a
-   mano desde local — más urgente ahora que existen 3 snapshots que
-   necesitan correr con regularidad para que la historización SCD2
-   tenga sentido (hoy solo se corrieron manualmente, una vez cada uno).
+6. ~~Automatizar `dbt run`/`dbt test`/`dbt snapshot`~~ — **hecho
+   (2026-08-16)** ([`docs/fase_orquestacion_dbt.md`](docs/fase_orquestacion_dbt.md)):
+   `dbt build --target prod` corre dentro de un Cloud Run Job
+   (`dw-dbt-build`), disparado por el mismo Workflow que ya orquestaba
+   la sync EL — ahora ESPERA (polling) a que la sync termine antes de
+   disparar dbt, en vez de correr en un momento arbitrario. Esto
+   también resuelve de raíz el falso positivo transitorio de
+   reconciliación ya documentado (`docs/fase5_reconciliacion_raw.md`,
+   `docs/fase5_exactitud_insumos.md`). La imagen del contenedor se
+   reconstruye y redespliega sola en cada push a `main` (Cloud Build
+   trigger conectado a GitHub). Primera vez que el target `prod` corre
+   de verdad — verificado en producción real (`PASS=458 ERROR=0`,
+   datasets `stg_ranchos`/`marts_ranchos`/etc. sin prefijo `dev_`
+   confirmados vía `bq ls`). **Pendiente, a propósito, fuera de esta
+   entrega:** alertas cuando el `dbt build` programado falla — queda
+   para la Fase 6 (alarmas), que ya estaba prevista como trabajo
+   separado.
 
 ## Cómo trabajar conmigo en este proyecto
 Mismo criterio de colaboración que ya está establecido en `ranchos--app`
