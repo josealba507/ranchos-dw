@@ -1,0 +1,27 @@
+# profiles.yml empaquetado DENTRO de la imagen del Cloud Run Job — distinto
+# de ~/.dbt/profiles.yml del desarrollador (ese vive fuera del repo, nunca
+# se versiona, ver .gitignore). Este SÍ se versiona, y es seguro hacerlo:
+# no contiene ningún secreto, ni API key, ni service account key — solo
+# nombra el proyecto/dataset/ubicación y method: oauth.
+#
+# method: oauth con Application Default Credentials: dentro de Cloud Run,
+# la librería de auth de Google resuelve las credenciales automáticamente
+# contra el service account adjunto al Job (dw-dbt-runner@..., ver
+# docs/fase_orquestacion_dbt.md) vía el metadata server del contenedor —
+# no hace falta (ni se debe) generar un archivo de key.
+#
+# Solo target "prod" — este contenedor nunca corre en "dev", así que no
+# tiene sentido empaquetar ese target acá (evita confusión sobre cuál usa
+# el job si alguien lo edita a mano).
+ranchos_dw:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: oauth
+      project: alba-analytics-ganaderia
+      dataset: dbt_scratch
+      location: US
+      threads: 4
+      job_execution_timeout_seconds: 600
+      job_retries: 1

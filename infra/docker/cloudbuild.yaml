@@ -1,0 +1,49 @@
+# Disparado por el Cloud Build trigger conectado a GitHub (push a `main`)
+# — ver docs/fase_orquestacion_dbt.md. Reconstruye la imagen del Cloud Run
+# Job de dbt y despliega la revisión nueva, para que la próxima corrida
+# programada (3x/día, vía infra/workflows/trigger_el_transfer.yaml) use el
+# código recién mergeado sin ningún paso manual.
+#
+# _AR_REPO/_REGION/_RUN_JOB/_RUN_SA sustituidos por los valores reales al
+# crear el trigger (ver comando en docs/fase_orquestacion_dbt.md) — evita
+# hardcodear acá el nombre del proyecto/región, mismo criterio que
+# transfer_config en trigger_el_transfer.yaml usa variables en vez de
+# literales repetidos.
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_AR_REPO}/dbt:${SHORT_SHA}
+      - -t
+      - ${_AR_REPO}/dbt:latest
+      - -f
+      - infra/docker/Dockerfile
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_AR_REPO}/dbt
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - ${_RUN_JOB}
+      - --image=${_AR_REPO}/dbt:${SHORT_SHA}
+      - --region=${_REGION}
+      - --project=${PROJECT_ID}
+
+images:
+  - ${_AR_REPO}/dbt:${SHORT_SHA}
+  - ${_AR_REPO}/dbt:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

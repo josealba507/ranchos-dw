@@ -1,0 +1,14 @@
+# Explícito a propósito, en vez de dejar que gcloud auto-genere uno desde
+# .gitignore — ese comportamiento por defecto causó un bug real (ver
+# docs/fase_orquestacion_dbt.md): el patrón "profiles.yml" de .gitignore
+# (para nunca commitear el profiles.yml LOCAL de un desarrollador) también
+# excluía infra/docker/dbt_profiles.yml del build context de Cloud Build,
+# aunque sea un archivo distinto y sin secretos. Con este archivo, el
+# contexto que sube `gcloud builds submit` deja de depender de qué reglas
+# tenga .gitignore en cada momento.
+.git
+.venv
+target
+dbt_packages
+logs
+.vscode
