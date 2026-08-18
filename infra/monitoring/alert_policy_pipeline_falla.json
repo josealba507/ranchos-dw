@@ -1,0 +1,54 @@
+{
+  "displayName": "DW: el pipeline programado (sync EL + dbt build) fallo",
+  "documentation": {
+    "content": "El pipeline 3x/dia (Workflow dw-trigger-el-transfer -> BigQuery Data Transfer -> Cloud Run Job dw-dbt-build) no termino con exito. Revisar:\n\n1. `gcloud workflows executions list --workflow=dw-trigger-el-transfer --location=us-central1 --project=alba-analytics-ganaderia --limit=5` para ver la ultima ejecucion y su error.\n2. Si el Workflow SI disparo dbt pero el Job fallo: `gcloud run jobs executions list --job=dw-dbt-build --region=us-central1 --project=alba-analytics-ganaderia --limit=5`, despues `gcloud logging read` sobre esa ejecucion (ver docs/fase_orquestacion_dbt.md para el comando completo) para ver el resumen `Done. PASS=... ERROR=...` de dbt.\n\nVer docs/fase6_alarmas_tecnicas.md para el detalle completo de esta alarma.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Ejecucion del Workflow dw-trigger-el-transfer fallo",
+      "conditionThreshold": {
+        "filter": "resource.type=\"workflows.googleapis.com/Workflow\" AND resource.labels.workflow_id=\"dw-trigger-el-transfer\" AND metric.type=\"workflows.googleapis.com/finished_execution_count\" AND metric.labels.status=\"FAILED\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "displayName": "Ejecucion del Cloud Run Job dw-dbt-build fallo",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"dw-dbt-build\" AND metric.type=\"run.googleapis.com/job/completed_execution_count\" AND metric.labels.result=\"failed\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "notificationChannels": [
+    "projects/alba-analytics-ganaderia/notificationChannels/11523500869606574724"
+  ],
+  "alertStrategy": {
+    "autoClose": "86400s"
+  }
+}

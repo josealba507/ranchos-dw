@@ -15,7 +15,13 @@
 # Si el Dataset Copy falla (o no termina dentro de max_intentos * espera),
 # el Workflow NO dispara dbt — no tiene sentido correr `dbt build` contra
 # una réplica que sabemos que no se actualizó, generaría ruido de falsos
-# positivos en vez de una señal real.
+# positivos en vez de una señal real. En vez de devolver un resultado
+# "exitoso" con el detalle en el payload, la ejecución del Workflow
+# FALLA de verdad (`raise`) en ese caso — ver docs/fase6_alarmas_tecnicas.md
+# para el porqué: la alarma de Cloud Monitoring se engancha al estado de
+# la EJECUCIÓN (SUCCEEDED/FAILED), no inspecciona el contenido del
+# payload de retorno, así que "sync nunca sincronizó" tiene que
+# manifestarse como una ejecución fallida para que la alarma la vea.
 #
 # Disparado por Cloud Scheduler 3x/día (8am/1pm/8pm hora de Panamá) — ver
 # el job "dw-el-transfer-3x-diario" en Cloud Scheduler. Sin cambios acá.
@@ -96,10 +102,11 @@ main:
           transfer_state: ${run_status.body.state}
           dbt_run: ${dbt_run_result.body}
     - transfer_no_exitoso:
-        return:
-          transfer_state: ${run_status.body.state}
-          dbt_run: "omitido - la sincronizacion no termino en SUCCEEDED"
+        raise:
+          mensaje: "El Dataset Copy no termino en SUCCEEDED - dbt build NO se disparo"
+          estado_transfer: ${run_status.body.state}
     - transfer_timeout:
-        return:
-          transfer_state: ${"TIMEOUT_ESPERANDO_" + run_status.body.state}
-          dbt_run: "omitido - se agoto el tiempo de espera del polling"
+        raise:
+          mensaje: "Se agoto el tiempo de espera del polling - dbt build NO se disparo"
+          max_intentos: ${max_intentos}
+          ultimo_estado_visto: ${run_status.body.state}
