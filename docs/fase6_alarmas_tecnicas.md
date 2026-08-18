@@ -107,20 +107,23 @@ confirmó el incidente en Cloud Logging.
   ```
   Esto confirma la cadena completa: falla real → métrica → condición de
   la alert policy → incidente abierto → notificación despachada al
-  canal de email (sin poder confirmar la entrega final a la bandeja de
-  entrada desde acá — verificación pendiente del lado del usuario, ver
-  Estado abajo).
+  canal de email.
+- **Confirmado por el usuario en su bandeja real** (`josealba507@gmail.com`,
+  no solo evidencia de GCP): llegaron 2 correos — el de la falla (el
+  `ViolationOpenEventv1` de arriba) **y uno de "exitoso"**. Ese segundo
+  correo no viene de ninguna condición nueva — es la notificación de
+  **auto-resolución** que Cloud Monitoring manda sola cuando el
+  incidente se cierra porque la ejecución programada siguiente salió
+  bien (`ViolationAutoResolveEventv1`, visto en el mismo rango de logs
+  que el `ViolationOpenEventv1`). Comportamiento esperado del canal, no
+  una alarma configurada aparte — vale la pena tenerlo presente para no
+  confundirlo con una alarma de "todo OK" que no existe.
 
 ## Estado
 
-Cierra la mitad técnica de la Fase 6. La mitad de negocio (reverse ETL
-de alertas operativas hacia Firestore) queda explícitamente fuera de
-esta entrega — ver "Prioridades actuales" en `CLAUDE.md` para el
-alcance pendiente y la razón de separarla (requiere diseño propio +
-tocar `ranchos--app`).
-
-**Pendiente de confirmar por el usuario:** que el email de la prueba de
-falla forzada (2do intento) llegó de verdad a
-`josealba507@gmail.com` — la evidencia de GCP (incidente abierto,
-canal sin verificación pendiente) es fuerte pero no reemplaza confirmar
-la bandeja de entrada real.
+Cierra la mitad técnica de la Fase 6, **verificado de punta a punta
+incluida la entrega real del email** (no solo la evidencia de GCP). La
+mitad de negocio (reverse ETL de alertas operativas hacia Firestore)
+queda explícitamente fuera de esta entrega — ver "Prioridades actuales"
+en `CLAUDE.md` para el alcance pendiente y la razón de separarla
+(requiere diseño propio + tocar `ranchos--app`).

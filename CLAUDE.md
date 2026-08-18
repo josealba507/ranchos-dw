@@ -427,6 +427,10 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      (`monitoring.googleapis.com%2FViolationOpenEventv1`) — cadena
      completa falla→métrica→condición→incidente→notificación
      confirmada. Los canales de email no requieren verificación previa.
+     **Confirmado por el usuario en su bandeja real:** llegaron los 2
+     correos — el de la falla y uno de "exitoso" (este último es la
+     notificación de auto-resolución que Cloud Monitoring manda sola al
+     cerrarse el incidente, no una alarma de éxito configurada aparte).
    - **Fase 6 (alarmas de negocio) — NO iniciado, ronda separada**:
      reverse ETL hacia una colección de Firestore para alertas
      operativas (ej. preñeces atrasadas, insumo por agotarse) calculadas
