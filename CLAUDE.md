@@ -407,10 +407,32 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      no requirió trabajo nuevo. Con esto no queda ninguna dimensión de
      `dama_governance.md` sin al menos un test real que la implemente —
      Fase 5 queda completa.
-   - Fase 6 (alarmas): separar alarmas técnicas (canal del equipo) de
-     alarmas de negocio (reverse ETL hacia una colección de Firestore —
-     requiere tocar `ranchos--app`, con confirmación explícita cuando
-     llegue el momento).
+   - ~~Fase 6 (alarmas técnicas)~~ — **hecho (2026-08-18)**
+     ([`docs/fase6_alarmas_tecnicas.md`](docs/fase6_alarmas_tecnicas.md)):
+     email cuando el pipeline programado (Workflow `dw-trigger-el-transfer`
+     o el Cloud Run Job `dw-dbt-build`) no termina con éxito — cierra lo
+     que `docs/fase_orquestacion_dbt.md` había dejado anotado como
+     pendiente. `infra/workflows/trigger_el_transfer.yaml`:
+     `transfer_no_exitoso`/`transfer_timeout` pasaron de `return` a
+     `raise` (necesario porque las alarmas de Cloud Monitoring se
+     enganchan al ESTADO de la ejecución, no al contenido del payload de
+     retorno). Canal de email + 1 alert policy con 2 condiciones (`OR`)
+     en `infra/monitoring/alert_policy_pipeline_falla.json`.
+     **Verificado con una falla forzada real** (no solo config
+     revisada): un primer intento de romper el Job a propósito
+     (`--select` de dbt sin match) reveló que dbt NO trata eso como
+     error (sale con código 0); un segundo intento (`--args="false"`)
+     sí falló de verdad y quedó confirmado en Cloud Logging que la
+     alert policy abrió el incidente
+     (`monitoring.googleapis.com%2FViolationOpenEventv1`) — cadena
+     completa falla→métrica→condición→incidente→notificación
+     confirmada. Los canales de email no requieren verificación previa.
+   - **Fase 6 (alarmas de negocio) — NO iniciado, ronda separada**:
+     reverse ETL hacia una colección de Firestore para alertas
+     operativas (ej. preñeces atrasadas, insumo por agotarse) calculadas
+     en el DW. Requiere diseño propio (qué alertas, con qué frecuencia,
+     qué colección/esquema en Firestore) y tocar `ranchos--app`, con
+     confirmación explícita cuando se retome.
    - Fase 7 (ML): bloqueada parcialmente por el hallazgo de
      `timestamp_registro` sin `serverTimestamp()` real (ver "Estado
      actual" arriba) — requiere decidir primero si se acepta la
