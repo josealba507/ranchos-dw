@@ -361,113 +361,89 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
       Checkpoint 2) — decisión de alcance explícita, documentada en cada
       PR, no hay caso de negocio que lo requiera todavía.
 
-## Prioridades actuales (en orden)
-1. ~~Resolver la migración de datos~~ — **hecho** (histórico completo +
-   actualización continua 3x/día, ver "Estado actual" arriba).
-2. ~~Fases 0-4 del documento de especificación (arquitectura completa +
-   patrón replicado a los 5 dominios)~~ — **hecho** (2026-08-13, ver
-   "Estado actual" arriba). `dbt build` del proyecto completo: 322/322
-   tests.
-3. ~~Fase 5 — reconciliación raw vs. Firestore~~ — **hecho, parcial
-   (2026-08-13)** ([`docs/fase5_reconciliacion_raw.md`](docs/fase5_reconciliacion_raw.md)):
-   26 tests de reconciliación de conteo (`raw` vs. source nuevo
-   `ranchos_operacional`, que apunta a `ranchos-7c313` real — no una
-   réplica) confirman que la réplica EL es 100% fiel hoy. `dbt source
-   freshness` pasó de "no computa nada" (sin umbrales configurados) a
-   funcionar con 2 niveles (dims 14d/45d, facts 5d/14d) — encontrado y
-   corregido de paso un bug real: las columnas `DATE` de las dims
-   rompían el mecanismo de freshness de dbt-bigquery, que exige
-   `TIMESTAMP`. `metadata_ranchos` (reservado desde la Fase 2) ya
-   recibe escrituras reales vía `store_failures`, confirmado con `bq ls`.
-   `dbt build`: 348/348 tests.
-   - ~~Detección automática de anomalías~~ — **hecho (2026-08-13)**
+## Prioridades actuales
+
+Reorganizado el 2026-08-19 en Completado/Pendiente — la lista numerada
+única se había vuelto difícil de leer tras varias rondas de PRs (ítems
+hechos y pendientes intercalados). Detalle completo de cada uno en su
+doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
+
+### Completado
+1. ~~Migración de datos~~ — histórico completo + actualización continua
+   3x/día (ver "Estado actual" arriba).
+2. ~~Fases 0-4 del documento de especificación~~ (2026-08-13) —
+   arquitectura completa de 5 capas, patrón replicado a los 5 dominios
+   de negocio (finanzas/leche/hato/veterinaria/insumos).
+3. ~~Fase 5 — calidad de datos, completa~~ (2026-08-13). Las 4
+   dimensiones que hacía falta implementar de punta a punta, cada una
+   con su propio hallazgo real (no solo "se agregó el test"):
+   - **Reconciliación + freshness**
+     ([`docs/fase5_reconciliacion_raw.md`](docs/fase5_reconciliacion_raw.md)):
+     26 tests de conteo exacto `raw` vs. `ranchos_operacional` (la
+     fuente real en `ranchos-7c313`, no una réplica) + `dbt source
+     freshness` con 2 niveles de umbral (dims 14d/45d, facts 5d/14d) —
+     encontrado y corregido un bug real de columnas `DATE` rompiendo el
+     mecanismo de freshness de dbt-bigquery.
+   - **Detección de anomalías**
      ([`docs/fase5_anomalias_elementary.md`](docs/fase5_anomalias_elementary.md)):
-     paquete `elementary-data/elementary` (0.25.1), elegido sobre
-     construir algo casero con `dbt_expectations` — confirmado con el
-     usuario. Escribe en `metadata_ranchos` (junto a la reconciliación).
-     3 tests (`volume_anomalies`/`freshness_anomalies`/
-     `all_columns_anomalies`) aplicados a las 26 tablas de `sources.yml`
-     — 78 tests, todos PASS en el rollout completo. **Sin historial
-     acumulado todavía no detecta anomalías reales** — depende
-     directamente del ítem 6 de abajo (automatizar corridas de dbt).
-     Hallazgo de paso: el paquete registra sus propios hooks
-     `on-run-start`/`on-run-end` solo, sin necesitar configuración
-     manual en `dbt_project.yml`.
-   - ~~Exactitud del ledger de Insumos vs. saldo cacheado~~ — **hecho
-     (2026-08-13)** ([`docs/fase5_exactitud_insumos.md`](docs/fase5_exactitud_insumos.md)):
-     `tests/exactitud_existencia_insumo_vs_ledger.sql` reconcilia
-     `SUM(cantidad_base)` de `movimientos_insumos` contra
-     `existencia_actual` de `catalogo_insumos` — cierra la fila
-     "Accuracy (exactitud)" de `docs/dama_governance.md`, hasta ahora
-     aspiracional (sin test real detrás). Confirmado empíricamente antes
-     de escribirlo (no asumido) que `cantidad_base` ya trae su propio
-     signo por `tipo_movimiento` — no hace falta signar en el test.
-     Consistencia (huérfanos fact→dim) ya estaba cubierta por los tests
-     `relationships` nativos desde que se construyó el dominio Insumos —
-     no requirió trabajo nuevo. Con esto no queda ninguna dimensión de
-     `dama_governance.md` sin al menos un test real que la implemente —
-     Fase 5 queda completa.
-   - ~~Fase 6 (alarmas técnicas)~~ — **hecho (2026-08-18)**
-     ([`docs/fase6_alarmas_tecnicas.md`](docs/fase6_alarmas_tecnicas.md)):
-     email cuando el pipeline programado (Workflow `dw-trigger-el-transfer`
-     o el Cloud Run Job `dw-dbt-build`) no termina con éxito — cierra lo
-     que `docs/fase_orquestacion_dbt.md` había dejado anotado como
-     pendiente. `infra/workflows/trigger_el_transfer.yaml`:
-     `transfer_no_exitoso`/`transfer_timeout` pasaron de `return` a
-     `raise` (necesario porque las alarmas de Cloud Monitoring se
-     enganchan al ESTADO de la ejecución, no al contenido del payload de
-     retorno). Canal de email + 1 alert policy con 2 condiciones (`OR`)
-     en `infra/monitoring/alert_policy_pipeline_falla.json`.
-     **Verificado con una falla forzada real** (no solo config
-     revisada): un primer intento de romper el Job a propósito
-     (`--select` de dbt sin match) reveló que dbt NO trata eso como
-     error (sale con código 0); un segundo intento (`--args="false"`)
-     sí falló de verdad y quedó confirmado en Cloud Logging que la
-     alert policy abrió el incidente
-     (`monitoring.googleapis.com%2FViolationOpenEventv1`) — cadena
-     completa falla→métrica→condición→incidente→notificación
-     confirmada. Los canales de email no requieren verificación previa.
-     **Confirmado por el usuario en su bandeja real:** llegaron los 2
-     correos — el de la falla y uno de "exitoso" (este último es la
-     notificación de auto-resolución que Cloud Monitoring manda sola al
-     cerrarse el incidente, no una alarma de éxito configurada aparte).
-   - **Fase 6 (alarmas de negocio) — NO iniciado, ronda separada**:
-     reverse ETL hacia una colección de Firestore para alertas
-     operativas (ej. preñeces atrasadas, insumo por agotarse) calculadas
-     en el DW. Requiere diseño propio (qué alertas, con qué frecuencia,
-     qué colección/esquema en Firestore) y tocar `ranchos--app`, con
-     confirmación explícita cuando se retome.
-   - Fase 7 (ML): bloqueada parcialmente por el hallazgo de
-     `timestamp_registro` sin `serverTimestamp()` real (ver "Estado
-     actual" arriba) — requiere decidir primero si se acepta la
-     aproximación actual o se pide un cambio aditivo en
-     `functions/src/index.ts` de `ranchos--app`.
-   - Fase 8 (optimización/costo): particionado ya viene heredado de las
-     fact tables origen; falta evaluar vistas materializadas, policy
-     tags sobre columnas de costo, y vistas autorizadas para L4.
-4. **Pendiente de decidir con el usuario, no bloqueante:** si el
-   mojibake encontrado en `resultado`/`ordeno` (ver "Estado actual")
-   vale la pena corregirlo también en `ranchos-7c313` (origen), o si
-   normalizarlo en el warehouse alcanza.
-5. `dbt docs generate` + `dbt docs serve` como catálogo de datos
-   navegable — ya hay suficientes modelos (37) para que valga la pena.
-6. ~~Automatizar `dbt run`/`dbt test`/`dbt snapshot`~~ — **hecho
-   (2026-08-16)** ([`docs/fase_orquestacion_dbt.md`](docs/fase_orquestacion_dbt.md)):
-   `dbt build --target prod` corre dentro de un Cloud Run Job
-   (`dw-dbt-build`), disparado por el mismo Workflow que ya orquestaba
-   la sync EL — ahora ESPERA (polling) a que la sync termine antes de
-   disparar dbt, en vez de correr en un momento arbitrario. Esto
-   también resuelve de raíz el falso positivo transitorio de
-   reconciliación ya documentado (`docs/fase5_reconciliacion_raw.md`,
-   `docs/fase5_exactitud_insumos.md`). La imagen del contenedor se
-   reconstruye y redespliega sola en cada push a `main` (Cloud Build
-   trigger conectado a GitHub). Primera vez que el target `prod` corre
-   de verdad — verificado en producción real (`PASS=458 ERROR=0`,
-   datasets `stg_ranchos`/`marts_ranchos`/etc. sin prefijo `dev_`
-   confirmados vía `bq ls`). **Pendiente, a propósito, fuera de esta
-   entrega:** alertas cuando el `dbt build` programado falla — queda
-   para la Fase 6 (alarmas), que ya estaba prevista como trabajo
-   separado.
+     paquete `elementary-data/elementary`, 3 tests sobre las 26 tablas
+     de `sources.yml` (78 tests) — necesita historial acumulado de
+     corridas regulares para detectar algo real, por eso dependía de
+     que se automatizara dbt (ítem 4 abajo, ya resuelto).
+   - **Exactitud** (ledger de Insumos vs. saldo cacheado,
+     [`docs/fase5_exactitud_insumos.md`](docs/fase5_exactitud_insumos.md)):
+     `tests/exactitud_existencia_insumo_vs_ledger.sql`, primera
+     instancia real de esta dimensión (antes aspiracional en
+     `dama_governance.md`).
+   - **Consistency** ya estaba cubierta desde que se construyó cada
+     dominio (tests `relationships` nativos) — no requirió trabajo
+     nuevo. Con esto, ninguna fila de la tabla de dimensiones DAMA de
+     `docs/dama_governance.md` quedó sin al menos un test real.
+4. ~~Automatizar `dbt run`/`test`/`snapshot`~~ (2026-08-16,
+   [`docs/fase_orquestacion_dbt.md`](docs/fase_orquestacion_dbt.md)) —
+   `dbt build --target prod` corre en un Cloud Run Job
+   (`dw-dbt-build`), disparado por el mismo Workflow de la sync EL,
+   que ahora ESPERA (polling) a que la sync termine antes de disparar
+   dbt en vez de correr en un momento arbitrario — resuelve de raíz el
+   falso positivo transitorio de reconciliación que motivó esta tarea.
+   Imagen reconstruida y redesplegada sola en cada push a `main`
+   (Cloud Build trigger conectado a GitHub). Primera vez que el target
+   `prod` corrió de verdad, verificado en producción real
+   (`PASS=458 ERROR=0`).
+5. ~~Fase 6 (alarmas técnicas)~~ (2026-08-18,
+   [`docs/fase6_alarmas_tecnicas.md`](docs/fase6_alarmas_tecnicas.md))
+   — email cuando el pipeline programado (Workflow o Cloud Run Job) no
+   termina con éxito. Verificado con una falla forzada real (no solo
+   config revisada) — incluyó un hallazgo de paso (`dbt --select` sin
+   match NO cuenta como error para dbt, sale con código 0) — y
+   confirmado por el usuario que los emails llegaron de verdad a la
+   bandeja real.
+
+### Pendiente (sin fecha comprometida, orden sugerido no estricto)
+1. **Fase 6 — alarmas de negocio.** Reverse ETL de alertas operativas
+   calculadas en el DW (ej. preñeces atrasadas, insumo por agotarse)
+   hacia una colección de Firestore que `ranchos--app` pueda leer.
+   Ronda separada a propósito: necesita su propio diseño (qué alertas
+   exactas, con qué frecuencia, qué colección/esquema en Firestore) y
+   toca `ranchos--app`, con confirmación explícita cuando se retome —
+   no arrancar sin que el usuario lo pida.
+2. **Fase 7 (ML).** Bloqueada parcialmente: `timestamp_registro` no
+   tiene `serverTimestamp()` real (ver "Estado actual" arriba) — hay
+   que decidir primero si se acepta la aproximación actual como
+   suficiente para features de ML, o si vale la pena pedir un cambio
+   aditivo en `functions/src/index.ts` de `ranchos--app` antes de
+   construir sobre eso.
+3. **Fase 8 (optimización/costo).** No iniciado. Particionado ya viene
+   heredado de las fact tables origen; falta evaluar vistas
+   materializadas, policy tags sobre columnas de costo, y vistas
+   autorizadas para L4.
+4. **`dbt docs generate` + `dbt docs serve`** como catálogo de datos
+   navegable. No iniciado — ya hay 88 modelos, de sobra para que valga
+   la pena.
+5. **Decisión pendiente, no bloqueante:** el mojibake encontrado en
+   `resultado`/`ordeno` (ver "Estado actual") ya se normaliza en el
+   warehouse — falta decidir si además vale la pena corregirlo en el
+   origen (`ranchos-7c313`), o si con la normalización acá alcanza.
 
 ## Cómo trabajar conmigo en este proyecto
 Mismo criterio de colaboración que ya está establecido en `ranchos--app`
