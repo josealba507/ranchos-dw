@@ -74,6 +74,15 @@ dbt docs generate && dbt docs serve   # catálogo de datos + grafo de lineage na
 sqlfluff lint models/      # linting de estilo SQL (dialecto bigquery)
 ```
 
+**`sqlfluff lint` es un chequeo local/pre-commit, no corre en CI.** El
+templater de dbt que usa (`templater = dbt` en `.sqlfluff`) necesita una
+conexión real a BigQuery para `set_relations_cache` — a diferencia de
+`dbt parse`, que compila el proyecto entero (Jinja, refs, sources,
+macros) sin tocar el warehouse. Como este repo es público, no hay un
+service account guardado como secret solo para poder lintear en CI — se
+corre a mano antes de cada PR. Ver `.github/workflows/ci.yml` para el
+detalle completo de esta decisión.
+
 ## VSCode
 
 Abrí la carpeta `dw_ranchos_app` como workspace (no el repo `ranchos--app`
