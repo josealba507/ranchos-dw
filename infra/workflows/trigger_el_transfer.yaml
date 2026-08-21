@@ -32,17 +32,33 @@
 #     --location=us-central1 \
 #     --source=infra/workflows/trigger_el_transfer.yaml \
 #     --service-account=dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com
+#
+# El resource name del transfer config (dw-el-transfer-config-name en Secret
+# Manager, no un literal acá) porque es un identificador operacional del
+# proyecto real, no algo que tenga sentido versionar en texto plano en un
+# repo — mismo criterio que cualquier config sensible al entorno. La service
+# account de este Workflow tiene roles/secretmanager.secretAccessor acotado
+# a ESE secreto puntual, no a todo Secret Manager.
 
 main:
   steps:
     - init:
         assign:
-          - transfer_config: "projects/702955643875/locations/us/transferConfigs/6a69a580-0000-2830-91fc-34c7e91a4873"
           - dbt_job_name: "projects/alba-analytics-ganaderia/locations/us-central1/jobs/dw-dbt-build"
           - poll_interval_seconds: 30
           - max_intentos: 60 # 60 * 30s = 30 min tope de espera
           - intentos: 0
           - now: ${time.format(sys.now())}
+    - fetch_transfer_config:
+        call: http.get
+        args:
+          url: "https://secretmanager.googleapis.com/v1/projects/alba-analytics-ganaderia/secrets/dw-el-transfer-config-name/versions/latest:access"
+          auth:
+            type: OAuth2
+        result: secret_result
+    - decode_transfer_config:
+        assign:
+          - transfer_config: ${text.decode(base64.decode(secret_result.body.payload.data))}
     - trigger_transfer:
         call: http.post
         args:
