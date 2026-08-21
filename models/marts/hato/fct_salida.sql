@@ -5,6 +5,16 @@
 -- criterio que catalogo_veterinarios en otros módulos: el catálogo existe
 -- para autocompletar/alta automática, no para forzar integridad
 -- referencial dura).
+--
+-- partition_by/cluster_by: al volumen actual el beneficio de costo es
+-- marginal — la razón real es dejar el patrón correcto instalado antes
+-- de que el volumen crezca (adelanta parte de la Fase 8 del plan).
+{{
+    config(
+        partition_by={'field': 'fecha_salida', 'data_type': 'date', 'granularity': 'day'},
+        cluster_by=['finca_asociada', 'id_animal']
+    )
+}}
 select
     id_registro,
     fecha_salida,
