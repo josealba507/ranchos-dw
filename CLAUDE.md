@@ -16,9 +16,7 @@ mismo, solo los modela para reporting/analítica.
   operacional (app en vivo, usada por colaboradores de campo) y lo analítico
   (transformaciones, reporting, futuros dashboards) — que un cambio de
   modelado en el DW nunca pueda afectar la app en producción, y viceversa.
-- Desarrollado y mantenido por la misma persona que `ranchos--app`
-  (desarrollador con background de Ingeniería de Datos / Data Warehouse,
-  aprendiendo dbt/analytics engineering sobre la marcha en este proyecto).
+- Desarrollado y mantenido por la misma persona que `ranchos--app`.
 
 **Memoria de Claude Code separada a propósito:** este directorio tiene su
 propio scope de memoria persistente, distinto del de `ranchos--app` — las
@@ -451,9 +449,7 @@ doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
 Mismo criterio de colaboración que ya está establecido en `ranchos--app`
 (mismo desarrollador, mismo estilo de trabajo):
 - Soy el único desarrollador. Explicá el *por qué* de cada cambio, no solo
-  el qué — estoy aprendiendo dbt/analytics engineering sobre la marcha, mi
-  fuerte es datos pero no necesariamente las convenciones específicas del
-  ecosistema dbt.
+  el qué.
 - Antes de tocar cualquier cosa que cruce a `ranchos--app` (permisos IAM,
   `functions/src/index.ts`, deploys de esa app) o que sea un
   DROP/ALTER/migración destructiva sobre `alba-analytics-ganaderia`,
