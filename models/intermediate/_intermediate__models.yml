@@ -1,0 +1,49 @@
+version: 2
+
+# Unit tests nativos de dbt (1.12) — filas 100% sintéticas, sin depender
+# de datos reales. Cubren el punto más frágil del modelo: la resolución
+# de la versión histórica correcta de un insumo al momento del
+# movimiento (ver el comentario largo en
+# int_movimientos_insumos_con_insumo_historico.sql para el porqué del
+# fallback — dbt snapshot no tiene histórico retroactivo, así que un
+# movimiento más viejo que la primera corrida de snapshot nunca
+# matchearía sin él).
+unit_tests:
+  - name: test_int_movimientos_insumos_matchea_version_vigente
+    description: >
+      Un movimiento con fecha dentro del rango [dbt_valid_from,
+      dbt_valid_to) de una versión del snapshot debe resolver esa
+      versión exacta (Prioridad 1), no una más vieja ni más nueva.
+    model: int_movimientos_insumos_con_insumo_historico
+    given:
+      - input: ref('stg_ranchos__movimientos_insumos')
+        rows:
+          - {id_registro: 'mov_test_1', id_insumo: 'ins_test_a', fecha_movimiento: '2026-03-15', cantidad_base: 10}
+      - input: ref('snapshot_insumo')
+        rows:
+          - {id_insumo: 'ins_test_a', nombre: 'Insumo Test A', categoria: 'Concentrado', unidad_base: 'kg', presentacion: 'Saco', estado: 'Activo', dbt_valid_from: '2026-01-01 00:00:00', dbt_valid_to: '2026-06-01 00:00:00'}
+          - {id_insumo: 'ins_test_a', nombre: 'Insumo Test A', categoria: 'Suplemento', unidad_base: 'kg', presentacion: 'Saco', estado: 'Activo', dbt_valid_from: '2026-06-01 00:00:00', dbt_valid_to: null}
+    expect:
+      rows:
+        - {id_registro: 'mov_test_1', id_insumo: 'ins_test_a', insumo_categoria_al_momento: 'Concentrado'}
+
+  - name: test_int_movimientos_insumos_fallback_version_mas_antigua
+    description: >
+      Un movimiento anterior a TODO el histórico conocido del snapshot
+      (más viejo que el dbt_valid_from más antiguo de ese insumo) debe
+      caer al fallback (Prioridad 2): la versión más antigua conocida,
+      en vez de quedar sin matchear — este es el caso real que motivó
+      el fallback (los 89 movimientos históricos del proyecto son
+      todos anteriores a la primera corrida de snapshot_insumo).
+    model: int_movimientos_insumos_con_insumo_historico
+    given:
+      - input: ref('stg_ranchos__movimientos_insumos')
+        rows:
+          - {id_registro: 'mov_test_2', id_insumo: 'ins_test_a', fecha_movimiento: '2025-01-01', cantidad_base: 5}
+      - input: ref('snapshot_insumo')
+        rows:
+          - {id_insumo: 'ins_test_a', nombre: 'Insumo Test A', categoria: 'Concentrado', unidad_base: 'kg', presentacion: 'Saco', estado: 'Activo', dbt_valid_from: '2026-01-01 00:00:00', dbt_valid_to: '2026-06-01 00:00:00'}
+          - {id_insumo: 'ins_test_a', nombre: 'Insumo Test A', categoria: 'Suplemento', unidad_base: 'kg', presentacion: 'Saco', estado: 'Activo', dbt_valid_from: '2026-06-01 00:00:00', dbt_valid_to: null}
+    expect:
+      rows:
+        - {id_registro: 'mov_test_2', id_insumo: 'ins_test_a', insumo_categoria_al_momento: 'Concentrado'}
