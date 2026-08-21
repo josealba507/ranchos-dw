@@ -1,144 +1,59 @@
-# RanchOS DW (`ranchos_dw`)
+# ranchos-dw
 
-Data Warehouse analítico de RanchOS — proyecto dbt separado de la app
-operacional (`ranchos--app`), siguiendo la separación operacional/analítica
-descrita en `CLAUDE.md` de ese repo. Este proyecto **transforma** los datos
-que las Cloud Functions de `ranchos--app` ya sincronizan a BigQuery; no
-captura datos por sí mismo.
+The analytics data warehouse behind a livestock management ERP running
+in production — built solo, with dbt and BigQuery, and published
+deliberately as a case study. The operational app (Firestore/Firebase,
+the actual ERP the ranch staff use day to day) lives in a separate
+private repository; its source is not exposed here.
 
-- **App operacional (Firestore + Firebase + BigQuery ingest):** repo
-  `ranchos--app`, proyecto GCP `ranchos-7c313`.
-- **Data Warehouse analítico (este repo):** proyecto GCP
-  `alba-analytics-ganaderia`.
-- **Gobernanza de datos aplicada:** ver [`docs/dama_governance.md`](docs/dama_governance.md)
-  — traduce DAMA-DMBOK a reglas concretas (tests obligatorios, naming,
-  materialización por capa, versionado histórico, PII, lineage).
+- 5-layer architecture, 5 business domains, 82 dbt models
+- 373 automated data-quality tests, covering all 6 DAMA-DMBOK quality dimensions
+- 26 source tables replicated 3x/day from the operational database
+- Full pipeline orchestration on GCP: BigQuery Data Transfer + Cloud Workflows + Cloud Run Jobs, with email alerting on failure
 
-## Estructura
+## Architecture
 
-```
-models/
-  staging/<fuente>/     stg_*  — 1:1 con la tabla fuente, vista (dataset stg_ranchos)
-  intermediate/          int_*  — joins/reglas de negocio reutilizables, ephemeral (sin dataset propio)
-  marts/<dominio>/       dim_*/fct_* — modelo dimensional, tabla (dataset marts_ranchos)
-    finanzas/
-    leche/
-    hato/
-    veterinaria/
-    insumos/
-  reporting/<dominio>/   vistas de negocio + features ML + alertas reverse ETL (dataset rpt_ranchos)
-                         — lo ÚNICO que BI/Looker Studio debe consultar
-    (mismos dominios que marts/)
-  marts/exposures.yml     trazabilidad hasta el dashboard/reporte real
-seeds/                    datos de referencia estáticos (CSV) (dataset seeds_ranchos)
-macros/                   macros propias (incluye generate_schema_name.sql)
-snapshots/                historización SCD tipo 2 de dimensiones que cambian (dataset int_ranchos)
-tests/                    tests genéricos custom (además de los declarativos en cada .yml)
-docs/dama_governance.md   reglas de gobernanza de datos del proyecto
-docs/fase0_inspeccion.md  informe de inspección del proyecto (convenciones, modelo de datos, tiempo, replicación)
-docs/fase2_arquitectura.md  decisiones de arquitectura de capas y datasets
+```mermaid
+flowchart LR
+    L0[("L0 · raw\ndataset: ranchos\nEL replica, 3x/day")] --> L1
+    L1["L1 · staging\ndataset: stg_ranchos\nviews, 1:1 with source"] --> L2S
+    L1 --> L2I
+    L2S["L2 · snapshots\ndataset: int_ranchos\nSCD2 history"] --> L3
+    L2I["L2 · intermediate\nephemeral\nbusiness-rule joins"] --> L3
+    L3["L3 · marts\ndataset: marts_ranchos\nstar schema, 5 domains"] --> L4
+    L4["L4 · reporting\ndataset: rpt_ranchos\nviews — the only layer BI touches"]
+    MD[("metadata_ranchos\ntest results, freshness,\nanomaly detection")]
 ```
 
-Arquitectura completa: `ranchos` (L0 raw) → `stg_ranchos` (L1) →
-`int_ranchos` (L2, solo snapshots) → `marts_ranchos` (L3) → `rpt_ranchos`
-(L4, lo que consume BI) — ver `docs/fase2_arquitectura.md` para el
-detalle de cada decisión.
+One BigQuery dataset per layer, on purpose: BigQuery grants IAM
+permissions at the dataset level, so this is how a reporting tool gets
+read access to L4 without ever seeing raw or intermediate data.
 
-## Setup local (primera vez)
+## Engineering decisions worth reading
 
-```powershell
-# 1. Clonar y entrar al proyecto
-cd <ruta-local-del-repo>
+The full decision log lives in `docs/` and `CLAUDE.md`, in Spanish (the
+project's working language) — each entry documents not just what was
+built, but what broke first and why. A few worth the click:
 
-# 2. Crear y activar el entorno virtual dedicado (no usar dbt global)
-python -m venv .venv
-.venv\Scripts\activate       # PowerShell: .venv\Scripts\Activate.ps1
+- [**Data governance as executable tests, not a slide deck**](docs/dama_governance.md) — every DAMA-DMBOK quality dimension maps to a real, runnable dbt test, not a policy document nobody enforces.
+- [**A snapshot bug that only shows up with real historical data**](docs/checkpoint2_movimientos_insumos.md) — the first `dbt snapshot` run assigns `dbt_valid_from = now()` to every row, which silently breaks point-in-time joins against older facts. Fixed with a fallback join, caught by actually inspecting output data instead of trusting green tests.
+- [**A reconciliation test that "failed" on purpose**](docs/fase5_reconciliacion_raw.md) — comparing row counts against the live operational source (not just the replica) surfaced a transient false positive, traced to its root cause instead of being patched away.
+- [**Orchestrating the pipeline on GCP, with the real bugs included**](docs/fase_orquestacion_dbt.md) — BigQuery Data Transfer, Cloud Workflows, Cloud Run Jobs and Cloud Build wired together, plus the 5 actual issues hit building it (not the sanitized version).
+- [**Verifying an alert by actually breaking something**](docs/fase6_alarmas_tecnicas.md) — a forced failure test that revealed the first attempt didn't even count as a failure to dbt, before the second one proved the alert fired end to end.
 
-# 3. Instalar dependencias fijadas
-pip install -r requirements.txt
+## Stack
 
-# 4. Instalar los packages de dbt (dbt_utils, dbt_expectations)
-dbt deps
+dbt-core + dbt-bigquery, BigQuery Data Transfer Service, Cloud
+Workflows, Cloud Run Jobs, Cloud Build, Cloud Monitoring, Elementary
+(anomaly detection), sqlfluff.
 
-# 5. Autenticar contra GCP (una sola vez por máquina — NO es un service
-#    account key, son credenciales OAuth locales de tu propia cuenta)
-gcloud auth application-default login
+## More
 
-# 6. Verificar que dbt puede conectarse
-dbt debug
-```
+Local setup, day-to-day commands, and full pipeline/orchestration
+detail: [`docs/setup.md`](docs/setup.md).
 
-`profiles.yml` vive en `~/.dbt/profiles.yml` (fuera de este repo, por
-convención estándar de dbt) y apunta al proyecto `alba-analytics-ganaderia`
-vía `method: oauth` — nunca a un archivo de credenciales en texto plano.
+More about the author: [joseluisalba.com](https://joseluisalba.com)
 
-## Comandos frecuentes
+---
 
-```powershell
-dbt run                    # corre todos los modelos (target dev por defecto -> datasets dev_*)
-dbt run --select staging   # solo la capa de staging
-dbt test                   # corre todos los tests declarados en los .yml
-dbt source freshness       # chequea que las tablas fuente reciban datos a tiempo
-dbt docs generate && dbt docs serve   # catálogo de datos + grafo de lineage navegable
-sqlfluff lint models/      # linting de estilo SQL (dialecto bigquery)
-```
-
-## VSCode
-
-Abrí la carpeta `dw_ranchos_app` como workspace (no el repo `ranchos--app`
-completo) para que la extensión de dbt/sqlfluff detecte `dbt_project.yml`
-en la raíz. Extensiones recomendadas ya declaradas en
-`.vscode/extensions.json` (VSCode las sugiere solas al abrir la carpeta):
-`dbt Power User`, `SQLFluff`, `YAML`, `Cloud Code`.
-
-## Entornos: dev vs. prod
-
-El target `dev` (default) escribe en datasets con prefijo `dev_`
-(`dev_staging`, `dev_marts`) — nunca sobre los datasets "reales" que algún
-día consuma un dashboard. El target `prod` (`dbt run -t prod`, reservado
-para cuando exista un pipeline/CI) escribe sin prefijo. Ver
-`macros/generate_schema_name.sql`.
-
-## Estado actual
-
-El dataset `ranchos` (19 tablas `tb_dim_*`/`tb_fact_*`) ya existe en
-`alba-analytics-ganaderia`, como réplica del dataset operacional real en
-`ranchos-7c313` — migración histórica completa hecha vía `bq cp`
-cross-project (2026-07-21), con actualización continua 3 veces al día
-(8am/1pm/8pm hora de Panamá) vía Cloud Scheduler + Cloud Workflows +
-BigQuery Data Transfer Service (2026-07-24). `dbt run`/`dbt test` ya
-corren contra datos reales y actualizados. Detalle completo de la
-arquitectura EL en `CLAUDE.md`, sección "Estado actual del proyecto".
-
-## Pipeline EL (actualización de la réplica, 3x/día)
-
-```
-infra/workflows/trigger_el_transfer.yaml   Workflow que dispara el transfer
-                                            (única lógica "propia" del pipeline)
-```
-
-Componentes en GCP (proyecto `alba-analytics-ganaderia`, todos en
-`us-central1` salvo el transfer config que es `us`):
-- Transfer config nativo `cross_region_copy` (Dataset Copy,
-  `overwrite_destination_table: true`, schedule automático deshabilitado).
-- Workflow `dw-trigger-el-transfer` — corre como la service account
-  `dw-transfer-runner`.
-- Cloud Scheduler `dw-el-transfer-3x-diario` (cron `0 8,13,20 * * *`,
-  `America/Panama`) — invoca el Workflow como la service account
-  `dw-scheduler-invoker`.
-
-```powershell
-# Redeploy del Workflow tras editar el .yaml
-gcloud workflows deploy dw-trigger-el-transfer `
-  --project=alba-analytics-ganaderia --location=us-central1 `
-  --source=infra/workflows/trigger_el_transfer.yaml `
-  --service-account=dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com
-
-# Disparo manual de prueba (fuera de horario)
-gcloud scheduler jobs run dw-el-transfer-3x-diario `
-  --project=alba-analytics-ganaderia --location=us-central1
-
-# Ver corridas recientes del transfer (TRANSFER_CONFIG_ID real fuera del repo)
-bq ls --transfer_run --project_id=alba-analytics-ganaderia `
-  "projects/<PROJECT_NUMBER>/locations/us/transferConfigs/<TRANSFER_CONFIG_ID>"
-```
+Source-available as a case study. All rights reserved.
