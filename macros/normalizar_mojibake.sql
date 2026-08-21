@@ -5,9 +5,10 @@
   53/128 filas afectadas) al construir el dominio Veterinaria — ver
   docs/fase0_inspeccion.md / PR de Veterinaria.
 
-  Origen probable: el backfill histórico inicial desde Excel
-  (backfill-hato-alba-guerra.js, ver CLAUDE.md de ranchos--app) no manejó
-  bien el encoding de caracteres acentuados al escribir a Firestore. Los
+  Origen probable: el backfill histórico inicial desde Excel (el script
+  de backfill histórico de ranchos--app, ver CLAUDE.md de ese repo) no
+  manejó bien el encoding de caracteres acentuados al escribir a
+  Firestore. Los
   registros capturados después, vía la app real, están correctamente
   codificados — por eso conviven las 2 formas para el mismo valor de
   negocio en la misma columna.

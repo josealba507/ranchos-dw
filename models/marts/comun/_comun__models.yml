@@ -48,7 +48,7 @@ models:
         description: >
           Seca (dic-abr) / Lluviosa (may-nov), patrón climático de Panamá
           confirmado con el usuario el 2026-08-13. Válido mientras el
-          proyecto tenga una sola finca real (Ganadera Alba Guerra) — si
+          proyecto tenga una sola finca real (la finca piloto) — si
           se suma una finca de microclima distinto, esta regla dejaría de
           ser universal.
         tests:

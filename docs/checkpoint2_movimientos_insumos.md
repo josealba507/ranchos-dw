@@ -67,7 +67,7 @@ resto de los dominios. **No se tocó ningún otro dominio en esta fase.**
 - `sqlfluff lint` sobre los 10 archivos nuevos: limpio (11 violaciones de
   formato auto-corregidas con `sqlfluff fix`, sin cambios de lógica).
 - Datos reales verificados en la vista de reportería (no solo "los tests
-  pasan"): movimientos de Ganadera Alba Guerra con `insumo_nombre`/
+  pasan"): movimientos de la finca piloto con `insumo_nombre`/
   `categoria` resueltos correctamente (ej. "Harina de Soya" / "Insumo de
   Alimento", "Yodo" / "Insumos de Ordeño").
 - `dim_fecha`: `estacion` calculada con el patrón Seca (dic-abr) /

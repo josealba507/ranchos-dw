@@ -117,7 +117,7 @@ de la app toca esos mismos datos", en vez de horas.
    necesitó 2 permisos previos no obvios**: habilitar
    `secretmanager.googleapis.com` (el flujo de conexión guarda el token
    de OAuth ahí) y otorgarle `roles/secretmanager.admin` al service
-   agent de Cloud Build (`service-702955643875@gcp-sa-cloudbuild.iam.gserviceaccount.com`)
+   agent de Cloud Build (`service-<PROJECT_NUMBER>@gcp-sa-cloudbuild.iam.gserviceaccount.com`)
    — recién creado con la habilitación de la API, sin ese rol asignado
    por defecto. Sin ambos, `gcloud builds connections create github`
    fallaba con `PERMISSION_DENIED` sobre Secret Manager, antes incluso
