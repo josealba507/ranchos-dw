@@ -1,0 +1,54 @@
+# Corre en cada PR y push a main. Deliberadamente NO corre `dbt build`
+# ni `sqlfluff lint` acá — ambos necesitan una conexión real a BigQuery
+# (sqlfluff lint vía el templater de dbt hace set_relations_cache, que
+# abre una conexión viva incluso sin ejecutar ninguna query real), y
+# este repo público no va a tener un service account guardado como
+# secret solo para eso. `dbt parse` sí es 100% seguro: valida que el
+# proyecto compila (Jinja, refs, sources, macros) sin tocar el
+# warehouse — confirmado localmente antes de escribir este archivo,
+# con las credenciales de ADC deliberadamente desactivadas para
+# simular un runner limpio.
+#
+# `sqlfluff lint` sigue siendo un chequeo real del proyecto — solo que
+# vive como práctica local/pre-commit (ver docs/setup.md), no bloqueando
+# CI.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dbt-parse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          dbt deps
+
+      - name: Write a connection-free profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml <<'PROFILE'
+          ranchos_dw:
+            target: ci
+            outputs:
+              ci:
+                type: bigquery
+                method: oauth
+                project: ci-dummy-project
+                dataset: ci_dummy_dataset
+                location: US
+                threads: 1
+          PROFILE
+
+      - name: dbt parse (validates the project compiles — no BigQuery connection made)
+        run: dbt parse --target ci

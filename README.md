@@ -1,5 +1,7 @@
 # ranchos-dw
 
+[![CI](https://github.com/josealba507/ranchos-dw/actions/workflows/ci.yml/badge.svg)](https://github.com/josealba507/ranchos-dw/actions/workflows/ci.yml)
+
 The analytics data warehouse behind a livestock management ERP running
 in production — built solo, with dbt and BigQuery, and published
 deliberately as a case study. The operational app (Firestore/Firebase,
