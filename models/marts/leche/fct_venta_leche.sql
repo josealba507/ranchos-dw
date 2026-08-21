@@ -4,6 +4,16 @@
 -- fuente de verdad server-side (ver stg_ranchos__venta_leche.sql). id_usuario
 -- y nombre_usuario quedan como dimensión degenerada, mismo criterio que el
 -- resto de los hechos de este proyecto (sin dim_usuario propia todavía).
+--
+-- partition_by/cluster_by: al volumen actual el beneficio de costo es
+-- marginal — la razón real es dejar el patrón correcto instalado antes
+-- de que el volumen crezca (adelanta parte de la Fase 8 del plan).
+{{
+    config(
+        partition_by={'field': 'fecha_pago', 'data_type': 'date', 'granularity': 'day'},
+        cluster_by=['id_finca']
+    )
+}}
 select
     id_registro,
     fecha_pago,

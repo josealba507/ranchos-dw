@@ -12,6 +12,18 @@
 -- recientes, ver docs/fase0_inspeccion.md hallazgo 4). costo_total es
 -- NUMERIC, no centavos enteros — decisión ya tomada por el proyecto
 -- operacional (ver docs/fase0_inspeccion.md, inconsistencia 1).
+--
+-- partition_by/cluster_by: al volumen actual el beneficio de costo es
+-- marginal — la razón real es dejar el patrón correcto instalado antes
+-- de que el volumen crezca (adelanta parte de la Fase 8 del plan).
+-- Particiona por fecha_movimiento (el evento), no fecha_vencimiento
+-- (un atributo del insumo).
+{{
+    config(
+        partition_by={'field': 'fecha_movimiento', 'data_type': 'date', 'granularity': 'day'},
+        cluster_by=['finca_asociada', 'id_insumo']
+    )
+}}
 select
     id_registro,
     id_insumo,
