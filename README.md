@@ -48,7 +48,7 @@ detalle de cada decisión.
 
 ```powershell
 # 1. Clonar y entrar al proyecto
-cd C:\ALBA_ANALYTICS\GANADERIA\dw_ranchos_app
+cd <ruta-local-del-repo>
 
 # 2. Crear y activar el entorno virtual dedicado (no usar dbt global)
 python -m venv .venv
@@ -121,11 +121,11 @@ Componentes en GCP (proyecto `alba-analytics-ganaderia`, todos en
 `us-central1` salvo el transfer config que es `us`):
 - Transfer config nativo `cross_region_copy` (Dataset Copy,
   `overwrite_destination_table: true`, schedule automático deshabilitado).
-- Workflow `dw-trigger-el-transfer` — corre como
-  `dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com`.
+- Workflow `dw-trigger-el-transfer` — corre como la service account
+  `dw-transfer-runner`.
 - Cloud Scheduler `dw-el-transfer-3x-diario` (cron `0 8,13,20 * * *`,
-  `America/Panama`) — invoca el Workflow como
-  `dw-scheduler-invoker@alba-analytics-ganaderia.iam.gserviceaccount.com`.
+  `America/Panama`) — invoca el Workflow como la service account
+  `dw-scheduler-invoker`.
 
 ```powershell
 # Redeploy del Workflow tras editar el .yaml
@@ -138,7 +138,7 @@ gcloud workflows deploy dw-trigger-el-transfer `
 gcloud scheduler jobs run dw-el-transfer-3x-diario `
   --project=alba-analytics-ganaderia --location=us-central1
 
-# Ver corridas recientes del transfer
+# Ver corridas recientes del transfer (TRANSFER_CONFIG_ID real fuera del repo)
 bq ls --transfer_run --project_id=alba-analytics-ganaderia `
-  "projects/702955643875/locations/us/transferConfigs/6a69a580-0000-2830-91fc-34c7e91a4873"
+  "projects/<PROJECT_NUMBER>/locations/us/transferConfigs/<TRANSFER_CONFIG_ID>"
 ```

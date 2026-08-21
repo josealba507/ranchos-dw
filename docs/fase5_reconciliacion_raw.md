@@ -105,7 +105,7 @@ dato" (Fase 5 del documento de especificación).
   warehouse (staging→marts), no a la pregunta puntual de esta sesión
   ("¿se copió Firestore a raw?").
 - Calibración fina de los umbrales de freshness contra el patrón real de
-  actividad de Ganadera Alba Guerra — pendiente de observar en la
+  actividad de la finca piloto — pendiente de observar en la
   práctica.
 
 ## Estado

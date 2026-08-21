@@ -47,7 +47,7 @@ enriquecido as (
         -- documento de especificación) — se calcula una sola vez acá, no
         -- en cada consulta. Si alguna finca de microclima distinto se
         -- suma al proyecto, esta regla dejaría de ser universal — hoy
-        -- solo hay una finca real (Ganadera Alba Guerra, ver
+        -- solo hay una finca real (la finca piloto, ver
         -- docs/fase0_inspeccion.md), así que no hace falta un atributo
         -- por finca todavía.
         case extract(dayofweek from date_day)

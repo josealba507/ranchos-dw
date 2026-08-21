@@ -8,8 +8,8 @@ mismo, solo los modela para reporting/analítica.
 
 - **App operacional** (Firestore, Firebase Auth, Hosting, Cloud Functions que
   hacen el sync a BigQuery): repo `ranchos--app`
-  (`C:\ALBA_ANALYTICS\GANADERIA\ranchos--app`), proyecto GCP `ranchos-7c313`.
-  Producción: https://ranchos-7c313.web.app/
+  (`<ruta-local-del-repo>`), proyecto GCP `ranchos-7c313`.
+  Producción: app en producción, repo privado.
 - **Data Warehouse analítico** (este repo): proyecto GCP
   `alba-analytics-ganaderia`.
 - **Por qué están separados:** aislar costos/IAM/blast-radius entre lo
@@ -41,7 +41,9 @@ tabla, etc.), consultá `CLAUDE.md` de `ranchos--app` — no lo dupliques acá.
   (no el repo completo de `ranchos--app`) para que la extensión de dbt
   detecte `dbt_project.yml`. Extensiones recomendadas ya declaradas en
   `.vscode/extensions.json`.
-- **Repo:** https://github.com/josealba507/ranchos-dw (privado).
+- **Repo:** https://github.com/josealba507/ranchos-dw (público — se
+  publica deliberadamente como caso de estudio de portfolio; el repo
+  operacional `ranchos--app` permanece privado).
 
 ## Arquitectura de capas
 5 capas + transversal, un dataset de BigQuery por capa (los permisos de
@@ -108,7 +110,7 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
   eliminado:** `alba-analytics-ganaderia` NO estaba vacío como asumía
   este archivo — tenía un dataset `Ganaderia` (mayúscula, distinto de
   `ranchos`) con una tabla `tb_fact_transacciones_financieras_old` (1103
-  filas, coincidente con el backfill de Finanzas de Alba Guerra) y una
+  filas, coincidente con el backfill de Finanzas de la finca piloto) y una
   tabla externa `tb_stg_transacciones_sheets`, sin relación con este
   proyecto ni documentado en ningún CLAUDE.md. Confirmado con el usuario
   que era una prueba vieja — se borró por completo
@@ -157,7 +159,8 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
   `ranchos--app`):
   1. **Transfer config nativo** (BigQuery Data Transfer Service,
      `data_source=cross_region_copy`, "Dataset Copy") —
-     `projects/702955643875/locations/us/transferConfigs/6a69a580-0000-2830-91fc-34c7e91a4873`.
+     `projects/<PROJECT_NUMBER>/locations/us/transferConfigs/<TRANSFER_CONFIG_ID>`
+     (valor real fuera del repo).
      `overwrite_destination_table: true` (WRITE_TRUNCATE por tabla —
      necesario porque las fact tables versionan filas existentes en vez
      de solo agregar; una copia incremental de "solo filas nuevas"
@@ -176,8 +179,7 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      target de Cloud Scheduler no puede generarlo solo (body estático).
      El Workflow calcula `time.format(sys.now())` y llama a
      `startManualRuns`. Corre como la service account
-     `dw-transfer-runner@alba-analytics-ganaderia.iam.gserviceaccount.com`,
-     con un **rol IAM custom mínimo** (`dwTransferRunner`, solo
+     `dw-transfer-runner`, con un **rol IAM custom mínimo** (`dwTransferRunner`, solo
      `bigquery.transfers.get`+`bigquery.transfers.update` — no existe un
      rol predefinido más angosto que `roles/bigquery.admin` para esto,
      confirmado revisando permisos incluidos de los roles predefinidos).
@@ -185,7 +187,7 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      cron `0 8,13,20 * * *`, `--time-zone=America/Panama`) — llama a
      `workflowexecutions.googleapis.com` para ejecutar el Workflow,
      usando OAuth con la service account
-     `dw-scheduler-invoker@alba-analytics-ganaderia.iam.gserviceaccount.com`
+     `dw-scheduler-invoker`
      (`roles/workflows.invoker` a nivel proyecto — la API no tiene un
      comando `gcloud workflows add-iam-policy-binding` para scopearlo
      solo a este Workflow).
@@ -340,7 +342,7 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
       `tb_fact_pesaje_leche.ordeno` en producción real tienen UTF-8 mal
       re-codificado ("PreÃ±ada" en vez de "Preñada", "MaÃ±ana" en vez de
       "Mañana") — probablemente del backfill histórico inicial desde
-      Excel (`backfill-hato-alba-guerra.js` en `ranchos--app`). Sin
+      Excel (el script de backfill histórico de `ranchos--app`). Sin
       corregirlo, cualquier agregación por esas columnas trataba el
       mismo valor de negocio como 2 distintos. Normalizado en staging
       (sin tocar `ranchos-7c313`), verificado con matemática exacta

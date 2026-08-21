@@ -84,7 +84,7 @@ Antes de escribir el test, se validó la fórmula a mano contra
 `alba-analytics-ganaderia.ranchos` real (`bq query` directo, no
 asumido): de los insumos con al menos 1 movimiento,
 `SUM(cantidad_base) == existencia_actual` exacto en el 100% de los casos
-reales (Ganadera Alba Guerra). Las únicas 4 discrepancias vistas en la
+reales (la finca piloto). Las únicas 4 discrepancias vistas en la
 tabla completa de catálogo son basura de sesiones de verificación ya
 conocida — 3 con `finca_asociada like 'TEST-%'` (ya excluidas por
 `filtro_finca_prueba_por_nombre()` en staging) y 1 huérfana real
