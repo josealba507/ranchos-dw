@@ -31,6 +31,8 @@ One BigQuery dataset per layer, on purpose: BigQuery grants IAM
 permissions at the dataset level, so this is how a reporting tool gets
 read access to L4 without ever seeing raw or intermediate data.
 
+[**Browse the full data catalog and lineage graph**](https://josealba507.github.io/ranchos-dw/) — every model, column, description and test, generated with `dbt docs`.
+
 ## Engineering decisions worth reading
 
 The full decision log lives in `docs/` and `CLAUDE.md`, in Spanish (the

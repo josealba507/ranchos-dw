@@ -83,6 +83,46 @@ service account guardado como secret solo para poder lintear en CI — se
 corre a mano antes de cada PR. Ver `.github/workflows/ci.yml` para el
 detalle completo de esta decisión.
 
+## Catálogo de datos (dbt docs), publicado en GitHub Pages
+
+El catálogo completo (columnas, descripciones, tests) y el grafo de
+lineage navegable están publicados en
+**https://josealba507.github.io/ranchos-dw/** — generados con
+`dbt docs generate` y publicados manualmente en la rama `gh-pages`
+(camino simple primero, sin automatizar todavía).
+
+Para regenerar y republicar después de un cambio de modelos:
+
+```powershell
+# 1. Generar el sitio contra dev (necesita conexión real a BigQuery,
+#    a diferencia de dbt parse — mismo motivo por el que esto no corre
+#    en CI, ver más arriba)
+dbt docs generate --target dev
+
+# 2. Publicar en un worktree aislado de la rama gh-pages, sin tocar el
+#    working tree de main
+git worktree add /tmp/ranchos-dw-ghpages gh-pages
+cp target/index.html target/manifest.json target/catalog.json target/run_results.json /tmp/ranchos-dw-ghpages/
+cd /tmp/ranchos-dw-ghpages
+git add -A && git commit -m "Actualizar dbt docs"
+git push origin gh-pages
+cd -
+git worktree remove /tmp/ranchos-dw-ghpages
+```
+
+`gh-pages` es una rama huérfana (`git worktree add --orphan -b gh-pages`,
+así se creó la primera vez) que solo contiene el sitio estático — nunca
+se mergea a `main`, ni al revés. GitHub Pages ya está configurado para
+servir esa rama desde la raíz (detectado solo al pushear la rama por
+primera vez, sin necesitar configuración manual en la UI).
+
+**Mejora futura, no implementada ahora a propósito:** automatizar este
+paso dentro del Cloud Build existente (`infra/docker/cloudbuild.yaml`,
+ver `docs/fase_orquestacion_dbt.md`) — que cada push a `main` regenere y
+republique el catálogo solo, en vez de un paso manual. Se dejó fuera de
+esta ronda para no acoplar la publicación de documentación (best-effort,
+no crítica) al pipeline de producción (dbt build 3x/día, sí crítico).
+
 ## VSCode
 
 Abrí la carpeta `dw_ranchos_app` como workspace (no el repo `ranchos--app`
