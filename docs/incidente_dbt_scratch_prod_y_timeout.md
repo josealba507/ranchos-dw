@@ -136,11 +136,112 @@ normal de Elementary, no relacionados a este incidente.
   runbook que de verdad se lee desde el email/incidente ya tenga el
   comando correcto la próxima vez.
 
+## Causa raíz 3 — el hook de Elementary: `all_columns_anomalies` sin `timestamp_column`
+
+Investigado después de cerrar las 2 causas de arriba, porque el hook
+`on-run-end` se estaba comiendo más de dos tercios del build (~24 min de
+~33) y venía creciendo.
+
+**El defecto:** en `_ranchos__sources.yml`, las 26 tablas declaraban 3
+tests de Elementary. `volume_anomalies` y `freshness_anomalies` pasaban
+`timestamp_column`; **`all_columns_anomalies` no**. Sin esa columna,
+Elementary no puede agrupar las métricas por fecha del dato y usa cada
+EJECUCIÓN del test como su propio bucket de la serie temporal — la serie
+crece con la cantidad de corridas (3/día), no con los días.
+
+**Evidencia (no inferido — medido en `data_monitoring_metrics`):**
+
+| métrica | test de origen | buckets observados |
+|---|---|---|
+| `row_count`, `freshness` | los que **sí** pasaban `timestamp_column` | `2026-08-23 00:00:00` → diarios |
+| `null_count`, `null_percent`, `missing_count`, `average_length`… | `all_columns_anomalies` | `2026-08-23 21:49:56` → uno por corrida |
+
+26 buckets distintos en 8 días ≈ 3.25/día = exactamente la frecuencia del
+pipeline. Y como cada test de anomalías devuelve su serie completa
+evaluada como "result rows" que se persisten, las filas por test crecieron
+linealmente: `1.6 → 3.2 → 6.2 → 9.1 → 12.0 → 15.4 → 18.8 → 22.7`
+(~+3/día = la cantidad de corridas, no de días).
+
+**Cómo eso se convierte en 24 minutos:** esas filas se insertan con
+`INSERT ... VALUES` troceados a `query_max_size` = 250 KB (override
+específico de BigQuery dentro de Elementary). Medido sobre la ejecución
+`dw-dbt-build-92kvp`: **267 jobs de INSERT, 244 KB promedio, 66.4 MB de
+texto SQL, secuenciales** — 614s de los 720s de tiempo de query del hook.
+En total 677 jobs de BigQuery en la ventana, pero solo ~1295s de
+slot-time: es overhead de submit/poll sobre cientos de sentencias chicas,
+no cómputo.
+
+**Agravante:** `metadata_ranchos.test_result_rows` acumuló **749 MB /
+551.652 filas**, todas de `anomaly_detection`. Esa tabla existe para el
+reporte UI de Elementary — pero `elementary-data` (el CLI `edr`) no está
+en `requirements.txt` y ningún modelo del proyecto lee ninguna tabla de
+Elementary. El grueso de ese costo alimentaba algo que nadie consume.
+
+**Hacia dónde iba:** `days_back: 14` × 3 corridas/día ≈ 42 buckets en la
+meseta, contra 26 medidos al día 8 (~62%). Proyección: hook ~38-40 min,
+build total ~48-50 min — el timeout nuevo de 60 min tenía bastante menos
+margen del que aparentaba, y se erosionaba con cada columna agregada.
+
+### Fix aplicado (2 partes)
+
+1. **`timestamp_column` en `all_columns_anomalies`**, con la columna
+   TIMESTAMP real de cada tabla (`timestamp_registro`, o
+   `timestamp_evento` en `tb_fact_logs_actividad` — verificadas contra
+   `INFORMATION_SCHEMA`, ambas TIMESTAMP nativas, sin cast).
+2. **El test sale de las 14 tablas DIM.** Son catálogos chicos que se
+   editan in-place, no acumulan filas por fecha: no hay serie temporal de
+   columnas que analizar, solo generaban costo. `volume_anomalies` y
+   `freshness_anomalies` siguen aplicando en las 26.
+
+**Verificación (corrida real contra `dev`, no solo parseo):** los 64
+tests de Elementary corrieron `PASS=66 ERROR=0`, y los buckets de
+`null_count`/`null_percent`/`average_length` pasaron de la hora exacta de
+cada corrida a **medianoche diaria** (`2026-08-24 00:00:00`), igual que
+`row_count` — que es exactamente la prueba de que el bucketing se
+corrigió. Quedan topados en 13-14 buckets por `days_back`, ya
+desacoplados de la frecuencia del pipeline.
+
+**Reducción medida en alcance:** de 278 columnas monitoreadas (90 dim +
+188 fact) a 188; y de ~26 buckets (rumbo a 42) a ~14 fijos. ≈2.7x menos
+trabajo de inmediato, ≈4.4x contra la meseta a la que iba — y, más
+importante que el número, **deja de crecer con la cantidad de corridas.**
+El número real en producción sale de la primera corrida programada
+después del deploy.
+
+**Pendiente, requiere decisión explícita:** `test_result_rows` conserva
+las 749 MB acumuladas por la mala configuración. Son datos históricos de
+una serie que ya no es comparable con la nueva (bucketing distinto) y que
+nada consume, pero **borrarlos es una operación destructiva sobre
+producción** — no se hace sin confirmación explícita (ver
+`docs/fase6_alarmas_tecnicas.md` y el criterio ya establecido en el
+proyecto para DROP/TRUNCATE en prod).
+
+## Barrida de tablas nuevas — `scripts/detectar_tablas_nuevas.py`
+
+Salió de la misma sesión: la réplica EL copia el dataset completo, así que
+una tabla nueva de RanchOS aparece sola en `ranchos`, pero declararla como
+source es un paso manual — hasta que alguien lo haga, esa tabla vive en el
+warehouse sin ningún test de calidad, sin freshness y sin reconciliación.
+
+El script compara el dataset raw contra `_ranchos__sources.yml` y reporta
+las dos direcciones (tablas sin declarar, y sources que apuntan a algo que
+ya no existe). Para cada tabla nueva emite el bloque YAML sugerido, con la
+columna de tiempo verificada contra `INFORMATION_SCHEMA` y respetando la
+regla de arriba (`all_columns_anomalies` solo en fact, siempre con
+`timestamp_column`).
+
+Solo lee — nunca modifica el YAML ni BigQuery: qué monitorear sigue siendo
+una decisión explícita. **No corre dentro del pipeline programado a
+propósito:** el pipeline debe fallar por problemas de datos, no por una
+tabla nueva que todavía nadie tuvo tiempo de modelar.
+
+Estado real al crearlo: 30 objetos en el dataset, 26 declarados — los 4
+faltantes son `VS_*`, todas `VIEW` legacy pre-dbt de julio, que el script
+ignora por defecto. **Las 26 tablas reales están 100% cubiertas.**
+Verificado además con un control negativo (sacar 2 tablas del YAML y
+confirmar que las detecta, con el bloque sugerido byte-idéntico al real).
+
 ## Estado
 
 `dw-dbt-build` verificado end-to-end contra el flujo real de producción
-(Workflow → sync → build), sin errores. Pendiente, no iniciado — el
-runtime del hook de Elementary (~20-24 min) viene creciendo y hoy usa
-más de dos tercios del tiempo total del build; vale la pena
-investigarlo si sigue subiendo, antes de que vuelva a comerse el nuevo
-timeout de 60 min.
+(Workflow → sync → build), sin errores. Las 3 causas raíz corregidas.

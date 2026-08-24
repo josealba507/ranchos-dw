@@ -83,6 +83,27 @@ service account guardado como secret solo para poder lintear en CI — se
 corre a mano antes de cada PR. Ver `.github/workflows/ci.yml` para el
 detalle completo de esta decisión.
 
+## Barrida: detectar tablas nuevas sin declarar
+
+RanchOS suma tablas seguido, y la réplica EL las copia solas al dataset
+`ranchos` (el Data Transfer es un "Dataset Copy" completo). Pero
+declararlas como source es manual — hasta que se haga, esa tabla no tiene
+ningún test de calidad ni reconciliación.
+
+```powershell
+python scripts/detectar_tablas_nuevas.py
+```
+
+Compara el dataset raw contra `_ranchos__sources.yml` y, para cada tabla
+sin declarar, emite el bloque YAML sugerido (con la columna de tiempo
+verificada contra `INFORMATION_SCHEMA`). Solo lee: nunca modifica el YAML
+ni BigQuery. Correrlo cuando se sepa que se agregaron tablas nuevas al
+sistema operacional — no corre dentro del pipeline programado a propósito,
+ver `docs/incidente_dbt_scratch_prod_y_timeout.md`.
+
+Ignora las vistas `VS_*` (legacy pre-dbt) por defecto; `--incluir-vistas`
+las suma a la comparación.
+
 ## Catálogo de datos (dbt docs), publicado en GitHub Pages
 
 El catálogo completo (columnas, descripciones, tests) y el grafo de

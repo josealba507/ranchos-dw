@@ -55,6 +55,34 @@ version: 2
 # Transfer) dejó de copiar algo. Los resultados de este test se persisten en
 # el dataset metadata_ranchos (store_failures) para tener un histórico
 # consultable de estas verificaciones, no solo una alarma puntual.
+#
+# elementary.all_columns_anomalies — SIEMPRE con timestamp_column, y SOLO
+# en tablas fact. Las 2 reglas salieron de un incidente real de producción
+# (ver docs/incidente_dbt_scratch_prod_y_timeout.md, sección del hook de
+# Elementary):
+#
+#   1. SIN timestamp_column, Elementary no puede agrupar las métricas por
+#      fecha del dato, y usa cada EJECUCIÓN del test como su propio bucket
+#      de la serie temporal. La serie entonces crece con la cantidad de
+#      corridas (3/día), no con los días — y como cada test de anomalías
+#      devuelve su serie completa evaluada como "result rows" que se
+#      persisten, el hook on-run-end pasó a tardar ~24 min (267 INSERT
+#      secuenciales de 250 KB cada uno, contra 749 MB acumulados en
+#      metadata_ranchos.test_result_rows). Confirmado empíricamente
+#      comparando los buckets en data_monitoring_metrics: las métricas de
+#      volume/freshness (que sí pasaban timestamp_column) tenían buckets
+#      diarios limpios, las de all_columns tenían buckets con la hora
+#      exacta de cada corrida.
+#   2. En las tablas DIM no se aplica en absoluto: son catálogos chicos que
+#      se editan in-place (no acumulan filas por fecha), así que no hay una
+#      serie temporal de columnas que analizar — solo generaban costo.
+#      Volume/freshness sí siguen aplicando en todas.
+#
+# Al agregar una tabla fuente nueva: usar la columna TIMESTAMP real de esa
+# tabla (timestamp_registro en casi todas las fact, timestamp_evento en
+# tb_fact_logs_actividad) — verificar contra INFORMATION_SCHEMA, no copiar
+# de otra tabla. Ver scripts/detectar_tablas_nuevas.py para la barrida que
+# detecta tablas del dataset raw todavía sin declarar acá.
 sources:
   - name: ranchos
     database: alba-analytics-ganaderia
@@ -90,10 +118,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
       - name: tb_dim_roles
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -110,10 +134,6 @@ sources:
           - elementary.freshness_anomalies:
               arguments:
                 timestamp_column: fecha_creacion
-              config:
-                tags: ['elementary']
-                severity: warn
-          - elementary.all_columns_anomalies:
               config:
                 tags: ['elementary']
                 severity: warn
@@ -136,10 +156,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
 
       # --- Finanzas ---
       - name: tb_dim_catalogo_finanzas
@@ -158,10 +174,6 @@ sources:
           - elementary.freshness_anomalies:
               arguments:
                 timestamp_column: fecha_creacion
-              config:
-                tags: ['elementary']
-                severity: warn
-          - elementary.all_columns_anomalies:
               config:
                 tags: ['elementary']
                 severity: warn
@@ -188,6 +200,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -216,6 +230,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -242,6 +258,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -268,6 +286,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -292,10 +312,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
       - name: tb_dim_catalogo_lotes
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -312,10 +328,6 @@ sources:
           - elementary.freshness_anomalies:
               arguments:
                 timestamp_column: fecha_creacion
-              config:
-                tags: ['elementary']
-                severity: warn
-          - elementary.all_columns_anomalies:
               config:
                 tags: ['elementary']
                 severity: warn
@@ -338,10 +350,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
       - name: tb_dim_catalogo_motivos_salida
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -358,10 +366,6 @@ sources:
           - elementary.freshness_anomalies:
               arguments:
                 timestamp_column: fecha_creacion
-              config:
-                tags: ['elementary']
-                severity: warn
-          - elementary.all_columns_anomalies:
               config:
                 tags: ['elementary']
                 severity: warn
@@ -388,6 +392,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -414,6 +420,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -438,10 +446,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
       - name: tb_dim_catalogo_medicinas
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -461,10 +465,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
       - name: tb_dim_catalogo_motivos_tratamiento
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -481,10 +481,6 @@ sources:
           - elementary.freshness_anomalies:
               arguments:
                 timestamp_column: fecha_creacion
-              config:
-                tags: ['elementary']
-                severity: warn
-          - elementary.all_columns_anomalies:
               config:
                 tags: ['elementary']
                 severity: warn
@@ -511,6 +507,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -537,6 +535,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -563,6 +563,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -587,10 +589,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
       - name: tb_dim_catalogo_categorias_insumos
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -610,10 +608,6 @@ sources:
               config:
                 tags: ['elementary']
                 severity: warn
-          - elementary.all_columns_anomalies:
-              config:
-                tags: ['elementary']
-                severity: warn
       - name: tb_dim_catalogo_unidades_insumos
         config:
           loaded_at_field: "cast(fecha_creacion as timestamp)"
@@ -630,10 +624,6 @@ sources:
           - elementary.freshness_anomalies:
               arguments:
                 timestamp_column: fecha_creacion
-              config:
-                tags: ['elementary']
-                severity: warn
-          - elementary.all_columns_anomalies:
               config:
                 tags: ['elementary']
                 severity: warn
@@ -660,6 +650,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -686,6 +678,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_registro
               config:
                 tags: ['elementary']
                 severity: warn
@@ -714,6 +708,8 @@ sources:
                 tags: ['elementary']
                 severity: warn
           - elementary.all_columns_anomalies:
+              arguments:
+                timestamp_column: timestamp_evento
               config:
                 tags: ['elementary']
                 severity: warn
