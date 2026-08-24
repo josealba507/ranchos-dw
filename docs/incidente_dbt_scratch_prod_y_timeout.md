@@ -205,16 +205,77 @@ desacoplados de la frecuencia del pipeline.
 188 fact) a 188; y de ~26 buckets (rumbo a 42) a ~14 fijos. ≈2.7x menos
 trabajo de inmediato, ≈4.4x contra la meseta a la que iba — y, más
 importante que el número, **deja de crecer con la cantidad de corridas.**
-El número real en producción sale de la primera corrida programada
-después del deploy.
 
-**Pendiente, requiere decisión explícita:** `test_result_rows` conserva
-las 749 MB acumuladas por la mala configuración. Son datos históricos de
-una serie que ya no es comparable con la nueva (bucketing distinto) y que
-nada consume, pero **borrarlos es una operación destructiva sobre
-producción** — no se hace sin confirmación explícita (ver
-`docs/fase6_alarmas_tecnicas.md` y el criterio ya establecido en el
-proyecto para DROP/TRUNCATE en prod).
+### Resultado real en producción
+
+Medido en `dw-dbt-build-n5f8m` (2026-08-24 03:27 UTC), la primera corrida
+después del deploy, disparada con el Workflow completo (sync EL + build)
+para que fuera fiel al flujo de las 3x/día:
+
+| | antes | después | mejora |
+|---|---|---|---|
+| Hook `on-run-end` | 1439.29s (~24 min) | **283.04s (4.7 min)** | **5.1x** |
+| Runtime del build | 1947.12s (~32.5 min) | **649.62s (10.8 min)** | 3.0x |
+| Job completo | 34m17s / 35m08s | **13m13s** | 2.6x |
+| Resumen dbt | `PASS=459 WARN=2 ERROR=0` | `PASS=447 WARN=0 ERROR=0` | — |
+| Filas nuevas en `test_result_rows` por corrida | ~43.500 | **2.520** | **17x** |
+
+La mejora real (5.1x en el hook) superó la proyección de ≈2.7x porque la
+estimación solo contemplaba la reducción de alcance (columnas × buckets),
+sin contar que menos filas por lote también significa muchas menos
+sentencias `INSERT` de 250 KB — y el costo dominante era el overhead de
+submit/poll de cada una, no el volumen de datos en sí.
+
+Los 2 warnings que arrastraba (`elementary_source_all_columns_anomalies`
+sobre composición y transacciones financieras) desaparecieron: eran
+anomalías detectadas sobre métricas con el bucketing roto.
+
+**Prueba de que el bucketing quedó corregido en producción**, no solo en
+dev: antes de esa corrida `data_monitoring_metrics` tenía 2.901 filas con
+bucket diario y 0 con bucket por corrida (después de la purga descrita
+abajo); después quedó en 5.697 diarias y **sigue en 0 por corrida** — las
+2.796 métricas nuevas se escribieron todas con bucket diario.
+
+El costo ahora está atado a los **días** (`days_back: 14`), no a la
+cantidad de corridas: se estabiliza solo en vez de crecer ~3 buckets/día
+indefinidamente.
+
+### Purga de los datos acumulados por la mala configuración
+
+Confirmada explícitamente con el usuario antes de ejecutar (criterio ya
+establecido en el proyecto para cualquier operación destructiva sobre
+producción, ver el incidente del `DROP TABLE` en el CLAUDE.md de
+`ranchos--app`). Alcance exacto, ejecutado el 2026-08-24 ~02:35 UTC:
+
+1. `TRUNCATE TABLE metadata_ranchos.test_result_rows` — 595.198 filas /
+   749 MB, todas `anomaly_detection`. `TRUNCATE` y no `DROP` a propósito:
+   preserva el esquema para que Elementary siga escribiendo sin recrear
+   la tabla.
+2. `DELETE FROM metadata_ranchos.data_monitoring_metrics WHERE bucket_end
+   != TIMESTAMP_TRUNC(bucket_end, DAY)` — 44.712 filas. **Esto no era
+   limpieza cosmética:** esas filas son el set de entrenamiento que
+   Elementary lee, y mezcladas con los buckets diarios nuevos habrían
+   corrompido las líneas base de anomalías durante ~14 días. El predicado
+   deja intactas las 2.901 filas correctas de volume/freshness.
+
+Se conservaron `elementary_test_results` (54.079 filas) y
+`dbt_run_results` (12.353) — la serie histórica de calidad que la Fase 5
+pidió explícitamente mantener (ver `docs/fase5_reconciliacion_raw.md`).
+
+**Dos lecciones del proceso, ambas por verificar antes de borrar:**
+
+- **Había una corrida de producción en vuelo.** `dw-dbt-build-zgglf`
+  (la programada de las 8pm de Panamá) arrancó 01:02 UTC y todavía
+  estaba corriendo. Borrar en ese momento habría chocado con el `INSERT`
+  de su hook y con el rate limit de DML por tabla que ya mordió varias
+  veces a este proyecto. Se esperó a que terminara (01:37 UTC, exitosa) —
+  y de paso agregó 43.546 filas más a `test_result_rows` (551.652 →
+  595.198), justamente porque corría todavía con el código viejo.
+- **Las 157 tablas `__tmp_` de `metadata_ranchos` NO eran basura.** A
+  primera vista parecían restos sin limpiar, pero todas tenían fecha del
+  día: eran el estado en vuelo de esa misma corrida. Elementary las
+  limpia sola al terminar (`clean_elementary_temp_tables`, verificado:
+  quedaron en 0 después). Borrarlas a mano habría roto el job en curso.
 
 ## Barrida de tablas nuevas — `scripts/detectar_tablas_nuevas.py`
 
@@ -243,5 +304,18 @@ confirmar que las detecta, con el bloque sugerido byte-idéntico al real).
 
 ## Estado
 
-`dw-dbt-build` verificado end-to-end contra el flujo real de producción
-(Workflow → sync → build), sin errores. Las 3 causas raíz corregidas.
+Cerrado. Las 3 causas raíz corregidas y verificadas end-to-end contra el
+flujo real de producción (Workflow → sync → build), sin errores:
+`PASS=447 WARN=0 ERROR=0` en 13m13s, contra 34-35 min antes.
+
+El timeout del Job queda en 3600s. Ya no es un margen ajustado como lo era
+cuando se subió: con el hook en ~4.7 min y el build total en ~11 min, hay
+~5x de holgura, y el costo ya no crece con la frecuencia de corridas.
+
+Queda como mejora futura, no bloqueante: el pipeline sigue escribiendo
+artefactos de Elementary (`test_result_rows`, `dbt_run_results`) que hoy
+no consume nadie, porque `elementary-data` (el CLI `edr` que genera el
+reporte) no está instalado. Se pueden apagar con
+`disable_tests_results`/`disable_run_results` si nunca se va a usar ese
+reporte, o dejarlos como están si en algún momento se quiere levantarlo —
+ahora que el volumen es 17x menor, ya no es un costo relevante.
