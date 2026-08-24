@@ -8,8 +8,8 @@ deliberately as a case study. The operational app (Firestore/Firebase,
 the actual ERP the ranch staff use day to day) lives in a separate
 private repository; its source is not exposed here.
 
-- 5-layer architecture, 5 business domains, 82 dbt models
-- 373 automated data-quality tests, covering all 6 DAMA-DMBOK quality dimensions
+- 5-layer architecture, 5 business domains, 52 dbt models and 3 SCD2 snapshots
+- 359 automated data-quality tests, covering all 6 DAMA-DMBOK quality dimensions
 - 26 source tables replicated 3x/day from the operational database
 - Full pipeline orchestration on GCP: BigQuery Data Transfer + Cloud Workflows + Cloud Run Jobs, with email alerting on failure
 

@@ -361,6 +361,137 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
       Checkpoint 2) — decisión de alcance explícita, documentada en cada
       PR, no hay caso de negocio que lo requiera todavía.
 
+## Preparación del repo como pieza pública de portfolio (2026-08-23, PRs #15-#22)
+
+El repo pasó a ser público como caso de estudio. Se ejecutó en fases, con
+revisión del diff y confirmación explícita antes de cada commit.
+
+- **Anonimización + endurecimiento** ([PR #16]): rutas locales, URL de
+  producción y el nombre real de la finca piloto salieron de `CLAUDE.md`.
+  El caso interesante fue `infra/workflows/trigger_el_transfer.yaml`: el
+  `transfer_config` estaba como literal, pero **ese archivo es infra viva,
+  no documentación** — anonimizarlo a ciegas habría roto la sync 3x/día.
+  Se resolvió moviéndolo a **Secret Manager** (`http.get` a
+  `secretmanager.googleapis.com` + `base64.decode`/`text.decode`), o sea
+  endurecimiento real en vez de un placeholder. De paso se corrigió que
+  `sys.log` usa el argumento `json:`, no `json_payload:`, y hubo que darle
+  `roles/logging.logWriter` a `dw-transfer-runner` (faltaba, la primera
+  corrida de verificación falló con 403).
+- **README en inglés** ([PR #17]) para alguien evaluando el proyecto en 2
+  minutos; el contenido operativo se movió a
+  [`docs/setup.md`](docs/setup.md).
+- **Bio del desarrollador quitada de `CLAUDE.md`** ([PR #18]) — decisión
+  explícita de sacarla del todo, no reformularla.
+- **CI en GitHub Actions** ([PR #19]): solo `dbt parse`. `sqlfluff lint`
+  quedó FUERA a propósito y esto se verificó empíricamente antes de
+  proponerlo, deshabilitando ADC en local para simular un runner limpio:
+  el templater `dbt` de sqlfluff necesita conexión real a BigQuery
+  (`adapter.set_relations_cache()`), a diferencia de `dbt parse` que
+  compila el proyecto entero sin tocar el warehouse. Como el repo es
+  público, no se guarda un service account como secret solo para lintear.
+- **Particionado + clustering** ([PR #20]) en las 10 fact tables de
+  `marts`, con los tipos verificados contra `INFORMATION_SCHEMA` real y
+  el resultado confirmado con `bq show`, no asumido.
+- **Unit tests nativos de dbt** ([PR #21]) sobre
+  `int_movimientos_insumos_con_insumo_historico` — el punto más frágil
+  del proyecto (el fallback point-in-time). Verificados con control
+  negativo: se rompió el valor esperado a propósito, se confirmó que el
+  test fallaba, y recién ahí se revirtió. **Estos unit tests causaron
+  después un incidente de producción** (ver la sección siguiente):
+  necesitan un dataset "scratch" por target, y solo se creó el de `dev`.
+- **Catálogo de datos publicado** ([PR #22]) en
+  https://josealba507.github.io/ranchos-dw/ vía `dbt docs generate` +
+  rama huérfana `gh-pages` (`git worktree add --orphan`, para no ensuciar
+  el working tree de `main`). GitHub Pages se autoconfiguró con solo
+  pushear la rama. La regeneración es manual a propósito — automatizarla
+  dentro del Cloud Build acoplaría documentación best-effort al pipeline
+  crítico.
+
+**Nota sobre las cifras públicas del README:** `dbt` reporta "82 models",
+pero **30 de esos son modelos del paquete Elementary**, no escritos acá —
+los propios son 52 (20 staging + 1 intermediate + 21 marts + 10
+reporting) + 3 snapshots. Los data tests bajaron de 373 a **359** con el
+fix de Elementary. Al tocar esos números en el README, usar los reales
+verificados con `dbt ls --output path`, no el total crudo de `dbt ls`.
+
+## Incidente de producción: `dw-dbt-build` fallando en cada corrida (2026-08-23/24, PRs #23-#25)
+
+Detalle completo en
+[`docs/incidente_dbt_scratch_prod_y_timeout.md`](docs/incidente_dbt_scratch_prod_y_timeout.md).
+Disparado por una alerta REAL de Cloud Monitoring (la alarma de la Fase 6
+funcionando de verdad, no una prueba forzada). **Tres** causas raíz
+distintas, no la que parecía:
+
+1. **Faltaba el dataset `dbt_scratch` para el target `prod`.** Los unit
+   tests del PR #21 se verificaron solo contra `dev`, así que solo se
+   creó `dev_dbt_scratch`. Cada corrida programada venía fallando desde
+   ese merge. Lección: un unit test verificado únicamente en `dev` puede
+   traer requisitos de infraestructura que `prod` no tiene.
+2. **El timeout del Cloud Run Job (1800s) quedó corto** frente al runtime
+   real, que había crecido. Subido a 3600s.
+3. **La de fondo: `all_columns_anomalies` se declaraba sin
+   `timestamp_column`**, a diferencia de `volume_anomalies`/
+   `freshness_anomalies` en las mismas 26 tablas. Sin esa columna
+   Elementary usa cada EJECUCIÓN del test como bucket de la serie, así
+   que el costo crecía con la cantidad de CORRIDAS (3/día), no con los
+   días. Confirmado comparando buckets reales en
+   `data_monitoring_metrics`. Se corrigió agregando `timestamp_column` en
+   las 12 tablas fact y sacando el test de las 14 dim (catálogos chicos
+   editados in-place, sin serie temporal de columnas que analizar).
+
+**Resultado medido en producción** (`dw-dbt-build-n5f8m`, primera corrida
+post-deploy con el Workflow completo): hook `on-run-end` 1439s → **283s
+(5.1x)**, build total 1947s → **650s**, Job completo 34m17s → **13m13s**,
+`PASS=447 WARN=0 ERROR=0`. `test_result_rows` pasó de ~43.500 filas por
+corrida a 2.520 (17x). El costo ahora está atado a `days_back` en días,
+así que se estabiliza solo.
+
+**Reglas que dejó este incidente:**
+
+- **`all_columns_anomalies`: siempre con `timestamp_column`, y solo en
+  tablas fact.** Documentado en el propio `_ranchos__sources.yml`.
+- **Para verificar el pipeline, disparar el Workflow completo
+  (`gcloud workflows execute dw-trigger-el-transfer`), NO el Job directo.**
+  Ejecutar `gcloud run jobs execute dw-dbt-build` se saltea la sync EL
+  previa y dispara un falso positivo del test de reconciliación (raw
+  queda atrás de la fuente operacional real). Ya pasó una vez.
+- **El trigger de Cloud Build es REGIONAL** (`us-central1`).
+  `gcloud builds list` sin `--region` devuelve cero y da la falsa
+  impresión de que no existe. El `cloudbuild.yaml` incluye un paso
+  `deploy` que hace `gcloud run jobs update` con el SHA nuevo, así que
+  tras un merge a `main` no hace falta ningún paso manual.
+- **Antes de borrar datos en producción, verificar que no haya un job en
+  vuelo** — y que lo que parece basura no sea su estado de trabajo. Al
+  purgar los datos acumulados por la mala configuración (749 MB de
+  `test_result_rows` + 44.712 filas con bucketing roto, ambos confirmados
+  con el usuario antes), había una corrida programada corriendo, y las
+  157 tablas `__tmp_` que parecían restos abandonados eran su estado en
+  vuelo (Elementary las limpia sola; quedaron en 0 al terminar).
+- **El runbook de la alerta tenía un comando roto** (`gcloud workflows
+  executions list --workflow=X`; `WORKFLOW` es posicional). Nunca se había
+  ejecutado hasta este incidente real. Corregido en el JSON versionado y
+  en la alert policy viva en GCP.
+
+## Barrida de tablas nuevas — `scripts/detectar_tablas_nuevas.py`
+
+La réplica EL copia el dataset completo, así que una tabla nueva de
+`ranchos--app` aparece sola en `ranchos`; pero declararla como source es
+MANUAL, y hasta que se haga vive en el warehouse sin ningún test de
+calidad, sin freshness y sin reconciliación. El script compara el dataset
+raw contra `_ranchos__sources.yml` en ambas direcciones y emite el bloque
+YAML sugerido para lo que falte, con la columna de tiempo verificada
+contra `INFORMATION_SCHEMA` y respetando la regla de
+`all_columns_anomalies` de arriba.
+
+Solo lee — nunca modifica el YAML ni BigQuery. **No corre dentro del
+pipeline a propósito:** el pipeline debe fallar por problemas de datos, no
+por una tabla nueva que todavía nadie tuvo tiempo de modelar. Correrlo
+cuando se sepa que se agregaron tablas al sistema operacional.
+
+Estado al crearlo: 30 objetos en el dataset, 26 declarados — los 4
+faltantes son `VS_*`, vistas legacy pre-dbt que el script ignora por
+defecto. Las 26 tablas reales están 100% cubiertas.
+
 ## Prioridades actuales
 
 Reorganizado el 2026-08-19 en Completado/Pendiente — la lista numerada
@@ -417,7 +548,20 @@ doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
    config revisada) — incluyó un hallazgo de paso (`dbt --select` sin
    match NO cuenta como error para dbt, sale con código 0) — y
    confirmado por el usuario que los emails llegaron de verdad a la
-   bandeja real.
+   bandeja real. **La alarma ya se ganó el sueldo:** disparó sola ante
+   una falla real (ver el incidente más arriba).
+6. ~~Repo público como pieza de portfolio~~ (2026-08-23, PRs #15-#22) —
+   ver la sección dedicada más arriba. Incluye 3 mejoras técnicas que
+   valían por sí mismas, no solo cosméticas: particionado/clustering,
+   unit tests nativos y el catálogo de datos publicado.
+7. ~~Incidente de producción de `dw-dbt-build`~~ (2026-08-23/24, PRs
+   #23-#25) — 3 causas raíz corregidas y verificadas end-to-end; el
+   pipeline pasó de 34-35 min a 13m13s. Ver la sección dedicada.
+8. ~~`dbt docs generate` como catálogo navegable~~ — hecho y **publicado**
+   en https://josealba507.github.io/ranchos-dw/ (PR #22).
+9. ~~Decidir si el proyecto necesita CI/CD propio~~ — decidido y hecho:
+   GitHub Actions corriendo `dbt parse` en cada PR (PR #19). `dbt build`
+   y `sqlfluff lint` quedan fuera por necesitar conexión real a BigQuery.
 
 ### Pendiente (sin fecha comprometida, orden sugerido no estricto)
 1. **Fase 6 — alarmas de negocio.** Reverse ETL de alertas operativas
@@ -433,17 +577,22 @@ doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
    suficiente para features de ML, o si vale la pena pedir un cambio
    aditivo en `functions/src/index.ts` de `ranchos--app` antes de
    construir sobre eso.
-3. **Fase 8 (optimización/costo).** No iniciado. Particionado ya viene
-   heredado de las fact tables origen; falta evaluar vistas
-   materializadas, policy tags sobre columnas de costo, y vistas
-   autorizadas para L4.
-4. **`dbt docs generate` + `dbt docs serve`** como catálogo de datos
-   navegable. No iniciado — ya hay 88 modelos, de sobra para que valga
-   la pena.
-5. **Decisión pendiente, no bloqueante:** el mojibake encontrado en
+3. **Fase 8 (optimización/costo).** Parcialmente hecho: particionado +
+   clustering explícitos en las 10 fact tables de `marts` (PR #20).
+   Falta evaluar vistas materializadas, policy tags sobre columnas de
+   costo, y vistas autorizadas para L4.
+4. **Decisión pendiente, no bloqueante:** el mojibake encontrado en
    `resultado`/`ordeno` (ver "Estado actual") ya se normaliza en el
    warehouse — falta decidir si además vale la pena corregirlo en el
    origen (`ranchos-7c313`), o si con la normalización acá alcanza.
+5. **Artefactos de Elementary que nadie consume, no bloqueante.** El
+   pipeline sigue escribiendo `test_result_rows`/`dbt_run_results` para
+   el reporte UI de Elementary, pero el CLI `edr` que lo genera no está
+   instalado (`elementary-data` no está en `requirements.txt`) ni ningún
+   modelo lee esas tablas. Se pueden apagar con `disable_tests_results`/
+   `disable_run_results`; ahora que el volumen bajó 17x ya no es un costo
+   relevante, así que también es válido dejarlos por si alguna vez se
+   quiere levantar ese reporte.
 
 ## Cómo trabajar conmigo en este proyecto
 Mismo criterio de colaboración que ya está establecido en `ranchos--app`
@@ -471,6 +620,3 @@ Mismo criterio de colaboración que ya está establecido en `ranchos--app`
 - Herramienta de BI/reporting final (Looker Studio es la opción más
   natural por ser gratis y de Google, pero no está decidido) — recién
   relevante una vez existan marts reales para conectar.
-- Si el proyecto va a necesitar CI/CD propio (GitHub Actions corriendo
-  `dbt build` en cada PR) o si alcanza con correrlo a mano por ahora,
-  dado que es un solo desarrollador.
