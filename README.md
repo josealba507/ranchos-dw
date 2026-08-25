@@ -33,6 +33,17 @@ read access to L4 without ever seeing raw or intermediate data.
 
 [**Browse the full data catalog and lineage graph**](https://josealba507.github.io/ranchos-dw/) — every model, column, description and test, generated with `dbt docs`.
 
+## What this answers for the business
+
+The reporting layer exists to answer operational questions the people
+running the farm actually ask. A few the current views support:
+
+- **Which cows are producing below the herd average, and is that trend or noise?** Per-animal, per-day yield, summing both milkings — a distinction that matters, since reading a single milking silently halves a cow's day.
+- **Which pregnancies are overdue, and by how long?** Palpation results carry the expected calving date and how many times it has been pushed back — so "she should have calved a month ago" is a query, not someone's recollection.
+- **Which treated animals are still inside their milk withdrawal period?** Every treatment records its withdrawal days. This is a food-safety question with a real cost attached to getting it wrong.
+- **Is delivered milk holding its quality, and how does that track against the price paid per liter?** Microbiology and composition are sampled independently of delivery, so the two are joined on farm and date rather than assumed to arrive together.
+- **Where is the money going by category, and how does that shift between the dry and rainy seasons?** The date dimension carries the season, so seasonality is a group-by instead of a manual date range.
+
 ## Engineering decisions worth reading
 
 The full decision log lives in `docs/` and `CLAUDE.md`, in Spanish (the
@@ -44,6 +55,15 @@ built, but what broke first and why. A few worth the click:
 - [**A reconciliation test that "failed" on purpose**](docs/fase5_reconciliacion_raw.md) — comparing row counts against the live operational source (not just the replica) surfaced a transient false positive, traced to its root cause instead of being patched away.
 - [**Orchestrating the pipeline on GCP, with the real bugs included**](docs/fase_orquestacion_dbt.md) — BigQuery Data Transfer, Cloud Workflows, Cloud Run Jobs and Cloud Build wired together, plus the 5 actual issues hit building it (not the sanitized version).
 - [**Verifying an alert by actually breaking something**](docs/fase6_alarmas_tecnicas.md) — a forced failure test that revealed the first attempt didn't even count as a failure to dbt, before the second one proved the alert fired end to end.
+- [**The alert fired for real, and the runbook was wrong**](docs/incidente_dbt_scratch_prod_y_timeout.md) — a production alert fired; the first diagnostic command in the runbook I had written turned out to have never been run, and didn't work. Three separate root causes underneath, including tests verified only against `dev` that had been failing in `prod` for days. The pipeline went from 34 minutes to 13.
+
+This repo is also a working example of disciplined AI-assisted development — see [`CLAUDE.md`](CLAUDE.md) for the collaboration rules and the full decision log.
+
+## Roadmap
+
+- A metrics layer in L4 with explicit grain, consumed by both BI and agents.
+- A BI dashboard on Looker Studio reading only from L4, declared as a dbt exposure.
+- An MCP server exposing business-scoped query tools over L4, restricted by IAM to the reporting dataset.
 
 ## Stack
 
