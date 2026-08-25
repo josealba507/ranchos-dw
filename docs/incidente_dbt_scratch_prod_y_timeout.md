@@ -1,5 +1,29 @@
 # Incidente — `dw-dbt-build` fallando en cada corrida programada
 
+## TL;DR (English)
+
+A real production alert fired — the alerting built in the previous phase
+earning its keep. Following my own runbook immediately exposed the first
+finding: the diagnostic command I had written into it was wrong and had
+never actually been run. Three separate root causes, not one. (1) The
+native unit tests added a few PRs earlier needed a scratch dataset per
+target, and only the `dev` one had been created — every scheduled `prod`
+run had been failing since that merge. The lesson is literal: verifying
+in `dev` is not verifying. (2) The job timeout, set months earlier, had
+quietly become tighter than the real runtime. (3) The one that actually
+mattered: an anomaly-detection test was declared without a timestamp
+column, unlike its two sibling tests on the same tables. Without it the
+tool buckets metrics **per test execution** instead of per day, so cost
+grew with how often the pipeline ran rather than with calendar time —
+confirmed by comparing real bucket timestamps, not by reading docs.
+Result after the fix: the end-to-end job went from ~34 minutes to
+**13m13s**, the offending hook from ~24 minutes to 4.7 (**5.1x**), and
+rows written per run dropped **17x** — and the cost stopped growing with
+run frequency. Cleaning up the accumulated junk had its own lesson: a
+scheduled run was in flight, and 157 tables that looked like abandoned
+debris were its live working state. (Full document in Spanish — the
+project's working language.)
+
 **Fecha:** 2026-08-23
 **Disparador:** alerta real de Cloud Monitoring (la alert policy de
 `docs/fase6_alarmas_tecnicas.md`, no una prueba forzada) — email real a
