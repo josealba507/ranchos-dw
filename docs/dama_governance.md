@@ -1,5 +1,21 @@
 # Gobernanza de datos — RanchOS DW (principios DAMA-DMBOK)
 
+## TL;DR (English)
+
+This is the project's governance rulebook: every DAMA-DMBOK knowledge
+area is translated into a concrete, verifiable rule inside the dbt
+project — a specific test type, a config entry, or a grep-able naming
+convention — never an abstract policy. All 6 DAMA data-quality
+dimensions map to real dbt tests (plus reconciliation against the live
+operational source and statistical anomaly detection on top). Hard
+rules with teeth: no mart merges without `unique` + `not_null` on its
+PK and `relationships` on every FK; every staging model over a fact
+table must filter to the current record version (the operational app
+versions corrections instead of updating in place); BI connects only
+to the L4 reporting dataset, never to marts or raw — which is what
+makes refactoring possible without breaking published dashboards.
+(Full document in Spanish — the project's working language.)
+
 Este documento traduce las áreas de conocimiento del **DAMA-DMBOK** (Data
 Management Body of Knowledge) a reglas concretas y verificables dentro de
 este proyecto dbt. No es teoría aparte — cada regla de acá tiene su

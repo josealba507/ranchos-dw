@@ -1,5 +1,26 @@
 # Orquestación: `dbt build` automático después de cada sync EL
 
+## TL;DR (English)
+
+Automates the pipeline and fixes a class of false positives at the root
+in the same change. Reconciliation tests had been failing intermittently
+because they ran at an arbitrary moment relative to the 3x/day sync;
+now the orchestration Workflow polls until the sync actually finishes
+and only then triggers `dbt build`, shrinking the race window from hours
+to seconds — and it deliberately does **not** trigger dbt if the sync
+failed, since testing against a replica known to be stale only
+manufactures noise. Runs as a containerized job with its image rebuilt
+and redeployed automatically on every push to main, and three separate
+service accounts each holding only the permissions its one job needs.
+Five real bugs surfaced during implementation, all of them in production
+because none of this can be exercised locally: a gitignore pattern
+silently excluding a needed file from the build context; a CLI flag that
+requires the Dockerfile at the context root; a workflow logging argument
+named differently than assumed; a service account missing log-write
+permission, failing before it ever reached dbt; and connecting the build
+service to GitHub needing two non-obvious permissions granted first.
+(Full document in Spanish — the project's working language.)
+
 **Fecha:** 2026-08-16
 **Motivo:** el usuario preguntó cómo reparar los 3 falsos positivos
 transitorios de reconciliación ya documentados en

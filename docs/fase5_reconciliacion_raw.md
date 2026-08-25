@@ -1,5 +1,24 @@
 # Fase 5 (parcial) — Validar que Firestore se copió correctamente a raw
 
+## TL;DR (English)
+
+Answers one question with evidence: "did the data actually make it into
+the warehouse?" The path is two hops, not one — the first belongs to the
+operational app, so this repo verifies the second: a generic test applied
+to all 26 source tables comparing exact row counts in the raw replica
+against the **live operational source**, not against another copy of
+itself. Two real findings: dbt's static parser cannot resolve a
+`source()` called with a computed argument (it fails at parse time with a
+mangled name), so the resolved source is passed in from the YAML instead;
+and `source freshness` had been declared for months but was silently
+evaluating nothing, because the dim tables use `DATE` columns while
+dbt-bigquery's freshness mechanism requires `TIMESTAMP` — fixed by
+wrapping them in a cast. Thresholds were set empirically, not guessed: a
+uniform threshold flagged 18 of 26 tables as stale, so dims and facts got
+separate tiers. Failures persist to a metadata dataset — confirmed by
+listing the tables, not by trusting the config. (Full document in Spanish
+— the project's working language.)
+
 **Fecha:** 2026-08-13
 **Alcance:** controles de calidad para responder específicamente "¿los datos
 de Firestore se copiaron a raw?" — no la Fase 5 completa del documento de

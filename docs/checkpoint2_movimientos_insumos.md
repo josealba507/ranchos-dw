@@ -1,5 +1,23 @@
 # Punto de Control 2 — `movimientos_insumos` de punta a punta
 
+## TL;DR (English)
+
+First full vertical slice of the warehouse: one fact (inventory
+movements) built end to end — raw → staging → SCD2 snapshot →
+point-in-time intermediate → dims → fact → one reporting view — with
+the grain of every model declared in one sentence before writing any
+SQL. Two real problems surfaced, neither a syntax bug: (1) a
+referential-integrity test caught 20 orphan rows from test farms left
+behind in production by the operational app's verification sessions —
+excluded in staging with a documented filter rather than deleting from
+the source; (2) the point-in-time join matched zero real movements,
+because a first-ever `dbt snapshot` run stamps `dbt_valid_from = now()`
+on every version, and all real movements predate that run. Caught by
+inspecting the actual output data (all names came back empty) instead
+of trusting 69/69 green tests; fixed with a documented fallback to the
+oldest known version. (Full document in Spanish — the project's working
+language.)
+
 **Fecha:** 2026-08-13
 **Alcance:** un solo hecho completo (raw → staging → integración →
 dimensiones asociadas → hecho → 1 vista de reportería), tal como pide la

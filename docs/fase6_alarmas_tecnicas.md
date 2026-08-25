@@ -1,5 +1,24 @@
 # Fase 6 (técnicas) — Alarmas cuando el pipeline programado falla
 
+## TL;DR (English)
+
+The scheduled pipeline could already fail visibly in the logs, but nobody
+was told. This adds email alerting on two conditions OR'd into a single
+policy: the orchestration Workflow ending in `FAILED`, or the dbt Cloud
+Run Job ending in `failed`. Making that work required a behavioral fix
+first: the Workflow used to `return` a "successful" result even when the
+upstream sync had not succeeded, with the real outcome buried in the
+return payload — but Cloud Monitoring alerts hook into the execution
+*state*, not the payload, so a sync that never synced would have been
+invisible. Changed to `raise`, which is also semantically truer. Verified
+by breaking production on purpose, and the first attempt taught something
+worth keeping: pointing dbt at a model selector that matches nothing is
+**not** a failure — it warns, does nothing, and exits 0. A second attempt
+with a command that genuinely exits non-zero produced a real incident,
+traced end to end from metric to open incident to delivered email —
+confirmed in the actual inbox, not just in the cloud console. (Full
+document in Spanish — the project's working language.)
+
 **Fecha:** 2026-08-18
 **Depende de:** `docs/fase_orquestacion_dbt.md` (el pipeline programado
 que esta ronda alarma) — ese PR ya dejaba anotado explícitamente que
