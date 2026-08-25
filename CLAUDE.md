@@ -517,10 +517,15 @@ doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
      mecanismo de freshness de dbt-bigquery.
    - **Detección de anomalías**
      ([`docs/fase5_anomalias_elementary.md`](docs/fase5_anomalias_elementary.md)):
-     paquete `elementary-data/elementary`, 3 tests sobre las 26 tablas
-     de `sources.yml` (78 tests) — necesita historial acumulado de
-     corridas regulares para detectar algo real, por eso dependía de
-     que se automatizara dbt (ítem 4 abajo, ya resuelto).
+     paquete `elementary-data/elementary` sobre las 26 tablas de
+     `sources.yml` — necesita historial acumulado de corridas regulares
+     para detectar algo real, por eso dependía de que se automatizara
+     dbt (ítem 4 abajo, ya resuelto). **Hoy son 64 tests, no los 78
+     originales:** arrancó con 3 tests × 26 tablas, pero
+     `all_columns_anomalies` salió de las 14 tablas dim en el fix de
+     bucketing (ver el incidente más arriba), así que quedan 26
+     `volume_anomalies` + 26 `freshness_anomalies` + 12
+     `all_columns_anomalies` (solo fact).
    - **Exactitud** (ledger de Insumos vs. saldo cacheado,
      [`docs/fase5_exactitud_insumos.md`](docs/fase5_exactitud_insumos.md)):
      `tests/exactitud_existencia_insumo_vs_ledger.sql`, primera
