@@ -100,3 +100,26 @@ vars:
   # sobre una fact table DEBE filtrar por esta var, nunca hardcodear el
   # string 'Activo' suelto en el SQL. Ver docs/dama_governance.md.
   estado_registro_vigente: 'Activo'
+
+  # --- Umbrales de manejo reproductivo (capa de métricas L4) ---
+  # Son decisiones de NEGOCIO, no constantes técnicas: la finca puede
+  # ajustarlas sin tocar SQL, y el histórico se recalcula solo porque los
+  # modelos que las usan son vistas. Confirmados con el usuario al definir
+  # la capa de métricas.
+
+  # Período de espera voluntario post-parto: una vaca recién parida no se
+  # sirve inmediatamente. Pasado este umbral entra a la lista de vacas a
+  # palpar (models/reporting/veterinaria/rpt_vacas_a_palpar.sql).
+  dias_espera_voluntaria: 60
+
+  # Anticipación del secado: cuántos días ANTES de la fecha esperada de
+  # parto la vaca pasa a preparto. Se resta de fecha_parto_esperada para
+  # calcular fecha_preparto.
+  dias_preparto: 60
+
+  # Edad en meses a partir de la cual una hembra se considera en edad
+  # reproductiva. Hoy NO se usa para clasificar (las fechas de nacimiento
+  # son aproximadas, de la carga inicial — ver la nota en
+  # rpt_metrica_estado_reproductivo.sql); queda declarada para cuando las
+  # edades reales estén cargadas.
+  meses_edad_reproductiva: 15
