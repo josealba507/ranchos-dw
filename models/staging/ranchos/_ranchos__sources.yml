@@ -9,7 +9,7 @@ version: 2
 # dataset operacional real (ranchos-7c313:ranchos) dentro del proyecto del
 # DW (alba-analytics-ganaderia), no una lectura cross-project directa. Migrado
 # por primera vez (histórico completo, `bq cp` tabla por tabla) el
-# 2026-07-21; actualizada 3x/día (8am/1pm/8pm hora Panamá) vía BigQuery Data
+# 2026-07-21; actualizada 1x/día (10pm hora Panamá) vía BigQuery Data
 # Transfer Service ("Dataset Copy", overwrite completo — necesario porque las
 # fact tables versionan correcciones Activo→Corregido, no solo agregan
 # filas) disparado por Cloud Scheduler + Workflow (ver

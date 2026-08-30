@@ -152,7 +152,9 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      pasan contra los datos migrados reales (`dbt run` + `dbt test`
      limpios).
 - **Actualización continua de la réplica (EL) — hecho (2026-07-24),
-  3 veces al día (8am/1pm/8pm hora de Panamá).** Arquitectura híbrida,
+  1 vez al día (10pm hora de Panamá).** Arrancó 3x/día (8am/1pm/8pm) y
+  pasó a una sola corrida nocturna el 2026-08-30 — ver "Cambio de
+  frecuencia" más abajo. Arquitectura híbrida,
   4 piezas en `alba-analytics-ganaderia` (proyecto del DW, ninguna toca
   `ranchos--app`):
   1. **Transfer config nativo** (BigQuery Data Transfer Service,
@@ -166,8 +168,12 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      activado — el schedule interno de este transfer type tiene un
      **mínimo de 12 horas** (`minimumScheduleInterval: 43200s`,
      confirmado contra la API real, no documentado en ningún lado) que
-     no alcanza para 3x/día, así que el disparo real no usa el
-     scheduler propio del transfer.
+     no alcanzaba para las 3 corridas diarias originales, así que el
+     disparo real no usa el scheduler propio del transfer. Con la
+     frecuencia actual (1x/día) ese mínimo ya no sería un obstáculo,
+     pero se conserva el Workflow porque además resuelve el
+     `requestedRunTime` dinámico (ver punto 2) y encadena el `dbt
+     build` posterior.
   2. **Workflow `dw-trigger-el-transfer`** (`us-central1`, fuente
      versionada en [`infra/workflows/trigger_el_transfer.yaml`](infra/workflows/trigger_el_transfer.yaml)) —
      única pieza de lógica "propia" de todo el pipeline, y mínima: la
@@ -181,14 +187,42 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
      `bigquery.transfers.get`+`bigquery.transfers.update` — no existe un
      rol predefinido más angosto que `roles/bigquery.admin` para esto,
      confirmado revisando permisos incluidos de los roles predefinidos).
-  3. **Cloud Scheduler `dw-el-transfer-3x-diario`** (`us-central1`,
-     cron `0 8,13,20 * * *`, `--time-zone=America/Panama`) — llama a
+  3. **Cloud Scheduler `dw-el-transfer-diario`** (`us-central1`,
+     cron `0 22 * * *`, `--time-zone=America/Panama`) — llama a
      `workflowexecutions.googleapis.com` para ejecutar el Workflow,
      usando OAuth con la service account
      `dw-scheduler-invoker`
      (`roles/workflows.invoker` a nivel proyecto — la API no tiene un
      comando `gcloud workflows add-iam-policy-binding` para scopearlo
      solo a este Workflow).
+  - **Cambio de frecuencia: de 3x/día a 1x/día a las 10pm (2026-08-30).**
+    El pipeline arrancó corriendo 8am/1pm/8pm, o sea en pleno horario de
+    captura de datos en el campo. Eso producía fallos transitorios
+    recurrentes del test de reconciliación: `raw` quedaba unos registros
+    atrás de `ranchos-7c313` simplemente porque alguien estaba cargando
+    datos en la app en ese mismo momento. **Evidencia concreta:** la
+    corrida del 2026-08-29 1pm terminó `PASS=446 ERROR=1`, y el único
+    error fue exactamente ese test sobre `tb_fact_logs_actividad`
+    (`Got 1 result`); la de las 8pm del mismo día pasó limpia. Mismo
+    patrón que el falso positivo de `dw-dbt-build-dnxjp` documentado en
+    `docs/incidente_dbt_scratch_prod_y_timeout.md`.
+    A las 10pm ya no hay captura activa, así que la clase entera de
+    fallos desaparece. Beneficio secundario: ahora que las métricas de
+    Elementary bucketean por día, 3 corridas diarias metían ruido
+    intradía en una serie diaria — con una sola queda un punto por
+    bucket. Y el costo baja a un tercio.
+    **Lo que se paga a cambio:** la frescura cae a 1x/día (lo capturado a
+    las 9am no llega a BI hasta esa noche — aceptable para el ritmo de
+    una finca, donde las métricas se mueven por días y no por horas), y
+    sobre todo **se pierde la auto-curación**: antes una corrida fallida
+    se arreglaba sola con la siguiente 5 horas después; ahora un fallo
+    significa 24 horas de datos viejos, así que la alarma de la Fase 6
+    pasa a ser la única red.
+    El job viejo (`dw-el-transfer-3x-diario`) se recreó con el nombre
+    correcto en vez de solo editarle el cron — su nombre habría quedado
+    mintiendo. Se verificaron los 8 campos de configuración del nuevo
+    contra el viejo (`attemptDeadline`, `retryConfig`, `timeZone`,
+    `state`, y los 4 de `httpTarget`) antes de borrar el original.
   - **APIs habilitadas como parte de este trabajo:** `iam`,
     `cloudscheduler`, `workflows`, `workflowexecutions` (`bigquery`/
     `bigquerydatatransfer` ya estaban habilitadas en ambos proyectos
@@ -501,7 +535,7 @@ doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
 
 ### Completado
 1. ~~Migración de datos~~ — histórico completo + actualización continua
-   3x/día (ver "Estado actual" arriba).
+   1x/día (ver "Estado actual" arriba).
 2. ~~Fases 0-4 del documento de especificación~~ (2026-08-13) —
    arquitectura completa de 5 capas, patrón replicado a los 5 dominios
    de negocio (finanzas/leche/hato/veterinaria/insumos).

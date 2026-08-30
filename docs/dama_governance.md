@@ -52,7 +52,7 @@ BigQuery los permisos se otorgan por dataset:
 ```
 L0  raw (dataset "ranchos", FUERA de dbt)
     Réplica exacta de ranchos-7c313:ranchos, poblada por el pipeline EL
-    (BigQuery Data Transfer + Workflow, 3x/día). Inmutable, sin retención.
+    (BigQuery Data Transfer + Workflow, 1x/día). Inmutable, sin retención.
     │
     ▼
 L1  staging (stg_*, dataset "stg_ranchos")     VIEW
