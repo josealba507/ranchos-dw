@@ -16,6 +16,104 @@ models:
         tests:
           - not_null
 
+  - name: rpt_metrica_entrega_leche
+    description: >
+      Métrica de leche entregada, una fila por entrega (liquidación pagada
+      por el comprador a una finca). Sirve para analizar cuánta leche se
+      entrega, cuánto se cobra por ella y cómo evoluciona el precio por
+      litro en el tiempo. IMPORTANTE: la fecha es la de PAGO, no la de
+      ordeño — no usar esta vista para medir estacionalidad productiva
+      (para eso está rpt_pesaje_resumen_diario, con grano de ordeño por
+      animal). Los precios por litro los calcula el sistema de pago
+      server-side; no se recalculan acá.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: leche
+    columns:
+      - name: fecha_pago
+        description: >
+          Fecha en que el comprador pagó la entrega. NO es la fecha de
+          ordeño ni de despacho de la leche.
+        tests:
+          - not_null
+
+      - name: anio
+        description: Año de la fecha de pago.
+        tests:
+          - not_null
+
+      - name: mes
+        description: Mes de la fecha de pago, como número (1-12).
+        tests:
+          - not_null
+
+      - name: mes_nombre
+        description: Nombre del mes de pago en español (Enero, Febrero...).
+
+      - name: estacion
+        description: >
+          Estación del año en la que cae la fecha de pago, según el clima
+          local — Seca (diciembre a abril) o Lluviosa (mayo a noviembre).
+
+      - name: nombre_finca
+        description: Nombre de la finca que hizo la entrega.
+        tests:
+          - not_null
+
+      - name: litros_entrega
+        description: Litros de leche entregados en esta entrega.
+        tests:
+          - not_null
+
+      - name: valor_entrega_bruta
+        description: >
+          Monto bruto de la entrega antes de descontar la multa. Incluye
+          el incentivo por calidad.
+        tests:
+          - not_null
+
+      - name: incentivo_valor
+        description: >
+          Monto pagado como incentivo por calidad de la leche en esta
+          entrega. Ya está incluido dentro de valor_entrega_bruta.
+
+      - name: multa
+        description: >
+          Monto descontado como penalización en esta entrega, típicamente
+          por calidad fuera de parámetro.
+
+      - name: valor_entrega_neta
+        description: >
+          Monto que la finca efectivamente cobra por esta entrega, después
+          de descontar la multa del valor bruto.
+        tests:
+          - not_null
+
+      - name: valor_litro_base
+        description: >
+          Precio base pagado por litro en esta entrega, sin contar el
+          incentivo por calidad.
+
+      - name: valor_litro_incentivo
+        description: >
+          Incentivo por calidad expresado por litro. Sirve para comparar
+          entregas de distinto volumen entre sí.
+
+      - name: valor_litro_total
+        description: >
+          Precio total pagado por litro (base más incentivo). Es la métrica
+          principal para responder si el precio que recibe la finca sube o
+          baja en el tiempo. Calculado server-side por el sistema de pago.
+        tests:
+          - not_null
+
+      - name: id_registro
+        description: Identificador único de la entrega.
+        tests:
+          - not_null
+          - unique
+
   - name: rpt_calidad_leche_reciente
     description: >
       Vista de negocio (L4) que combina microbiología y composición por

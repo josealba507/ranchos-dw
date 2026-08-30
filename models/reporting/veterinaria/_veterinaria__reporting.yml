@@ -40,3 +40,318 @@ models:
       - name: litros_totales_dia
         tests:
           - not_null
+
+  - name: rpt_metrica_transicion_palpamiento
+    description: >
+      Evolución reproductiva entre palpamientos consecutivos: una fila por
+      palpamiento, comparada contra el palpamiento anterior de la misma
+      vaca. Responde cuántas vacas mejoraron, se mantuvieron o empeoraron
+      su diagnóstico, y en cuántos días. Se apoya en un orden reproductivo
+      explícito: Vacía Anestro es peor que Vacía Ciclando, y Preñada es el
+      mejor estado. Distingue el caso en que una vaca dejó de estar preñada
+      porque parió (ciclo normal) de aquel en que la perdió sin parir
+      (posible aborto) — sin esa distinción se reportarían vacas sanas como
+      problemas.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: nombre_finca
+        description: Finca a la que pertenece la vaca.
+        tests:
+          - not_null
+
+      - name: arete_animal
+        description: >
+          Número de arete de la vaca, que es como el personal de campo la
+          identifica.
+
+      - name: fecha_palpamiento
+        description: Fecha en que se hizo este palpamiento.
+        tests:
+          - not_null
+
+      - name: resultado
+        description: >
+          Diagnóstico de este palpamiento: 'Preñada', 'Vacía Ciclando' (no
+          está preñada pero sí ciclando) o 'Vacía Anestro' (no está
+          ciclando, el peor estado reproductivo).
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Preñada', 'Vacía Ciclando', 'Vacía Anestro']
+
+      - name: fecha_palpamiento_previo
+        description: >
+          Fecha del palpamiento anterior de esta misma vaca. Nulo si este
+          es su primer palpamiento registrado.
+
+      - name: resultado_previo
+        description: >
+          Diagnóstico del palpamiento anterior. Nulo si este es el primero.
+
+      - name: dias_entre_palpamientos
+        description: >
+          Días transcurridos entre el palpamiento anterior y este. Un
+          intervalo muy largo puede explicar por qué un cambio de estado
+          pasó desapercibido.
+
+      - name: transicion
+        description: >
+          Cómo cambió el diagnóstico respecto al palpamiento anterior.
+          'Mejoró' = subió de estado (por ejemplo de vacía a preñada).
+          'Mantiene' = mismo estado. 'Empeoró' = bajó de estado.
+          'Ciclo completado' = estaba preñada y parió, así que aparecer
+          vacía ahora es lo esperado, no una pérdida. 'Primer palpamiento'
+          = no hay anterior con qué comparar.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 'Primer palpamiento'
+                  - 'Mejoró'
+                  - 'Mantiene'
+                  - 'Empeoró'
+                  - 'Ciclo completado'
+
+      - name: detalle_transicion
+        description: >
+          El cambio en texto legible, por ejemplo 'Vacía Ciclando →
+          Preñada'. Útil para desglosar exactamente qué transiciones son
+          las más frecuentes.
+
+      - name: posible_aborto
+        description: >
+          Verdadero si la vaca estaba preñada y dejó de estarlo SIN que se
+          haya registrado un parto en el medio. Es una señal para revisar,
+          no un diagnóstico veterinario confirmado.
+        tests:
+          - not_null
+
+      - name: parto_entre_palpamientos
+        description: >
+          Verdadero si la vaca parió entre el palpamiento anterior y este.
+          Es lo que permite no confundir un parto normal con una pérdida.
+        tests:
+          - not_null
+
+      - name: es_ultimo_palpamiento
+        description: >
+          Verdadero si este es el palpamiento más reciente de la vaca.
+          Filtrar por esta columna da la foto de las transiciones actuales
+          del hato, en vez del histórico completo.
+        tests:
+          - not_null
+
+      - name: id_registro
+        description: Identificador único del palpamiento.
+        tests:
+          - not_null
+          - unique
+
+  - name: rpt_metrica_estado_reproductivo
+    description: >
+      Estado reproductivo actual del hato: una fila por vaca activa que
+      tenga al menos un palpamiento registrado. Responde cuántas vacas
+      están preñadas, cuántas vacías, hace cuánto que no se palpan y
+      cuántos días lleva abierta cada una. Para las preñadas incluye la
+      fecha esperada de parto y la fecha en que deben pasar a preparto.
+      Solo incluye vacas ya palpadas: las que nunca se palparon quedan
+      fuera a propósito, porque clasificarlas exigiría apoyarse en edades
+      que hoy son aproximadas. Los días se calculan contra la fecha en que
+      se consulta.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: fecha_reporte
+        description: >
+          Fecha en que se consultó el reporte. Todas las columnas de días
+          se cuentan contra esta fecha.
+        tests:
+          - not_null
+
+      - name: nombre_finca
+        description: Finca a la que pertenece la vaca.
+        tests:
+          - not_null
+
+      - name: lote
+        description: >
+          Lote de manejo en el que está la vaca. Nulo si no tiene lote
+          asignado.
+
+      - name: arete
+        description: Número de arete de la vaca.
+
+      - name: chip
+        description: Número de chip electrónico, si tiene.
+
+      - name: estado_reproductivo
+        description: >
+          Situación reproductiva actual. 'Preñada' = confirmada preñada y
+          todavía no parió. 'Parió' = su último palpamiento decía preñada
+          pero ya dio a luz, así que hoy no está preñada. 'Vacía Ciclando'
+          = no preñada pero ciclando. 'Vacía Anestro' = no está ciclando,
+          el estado que más atención requiere.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Preñada', 'Parió', 'Vacía Ciclando', 'Vacía Anestro']
+
+      - name: resultado_ultimo_palpamiento
+        description: >
+          Diagnóstico crudo del último palpamiento, sin la corrección por
+          parto. Comparado contra estado_reproductivo muestra qué vacas ya
+          parieron desde su última revisión.
+        tests:
+          - not_null
+
+      - name: fecha_ultimo_palpamiento
+        description: Fecha del palpamiento más reciente de esta vaca.
+        tests:
+          - not_null
+
+      - name: dias_desde_ultimo_palpamiento
+        description: >
+          Días transcurridos desde el último palpamiento. Un valor alto
+          indica una vaca que hace mucho no se revisa.
+        tests:
+          - not_null
+
+      - name: fecha_ultimo_parto
+        description: >
+          Fecha del último parto registrado. Nula si la vaca nunca parió o
+          si sus partos anteriores no quedaron registrados en el sistema.
+
+      - name: dias_desde_ultimo_parto
+        description: Días transcurridos desde el último parto.
+
+      - name: fecha_inicio_periodo_abierto
+        description: >
+          Desde cuándo la vaca lleva sin preñarse: su último parto si
+          existe, o si no el primer palpamiento en que se la encontró vacía.
+          Nula si está preñada, porque su período abierto ya cerró.
+
+      - name: dias_abiertos
+        description: >
+          Cuántos días lleva la vaca sin preñarse. Es el indicador central
+          de eficiencia reproductiva: mientras más alto, más tiempo lleva
+          sin producir una cría. Nulo si está preñada.
+
+      - name: fecha_parto_esperada
+        description: >
+          Fecha estimada de parto, calculada al momento del palpamiento.
+          Solo tiene valor si la vaca está preñada.
+
+      - name: fecha_preparto
+        description: >
+          Fecha en que la vaca debe pasar a preparto (secado), calculada
+          restando el umbral de preparto a la fecha esperada de parto. Solo
+          tiene valor si está preñada.
+
+      - name: dias_para_parto
+        description: >
+          Días que faltan para el parto esperado. Un valor negativo
+          significa que la fecha estimada ya pasó y la vaca no ha parido.
+          Solo tiene valor si está preñada.
+
+      - name: meses_atraso
+        description: >
+          Cuántas veces se pospuso un mes la fecha esperada de parto,
+          cuando en la práctica la vaca no parió en la fecha estimada.
+
+      - name: id_animal
+        description: Identificador único del animal.
+        tests:
+          - not_null
+          - unique
+
+  - name: rpt_vacas_a_palpar
+    description: >
+      Planilla operativa de trabajo: la lista de vacas que hay que palpar,
+      pensada para exportarse o imprimirse y llenarse en el campo. Incluye
+      vacas activas no preñadas que ya pasaron el período de espera después
+      del parto, o cuyo último palpamiento las dejó vacías. Las dos últimas
+      columnas están vacías a propósito: son el espacio para anotar la
+      fecha y el resultado del palpamiento que se va a hacer. Está ordenada
+      por lote para recorrer el campo lote por lote.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: veterinaria
+    columns:
+      - name: fecha_reporte
+        description: >
+          Fecha en que se generó la planilla. Todas las columnas de días se
+          cuentan contra esta fecha.
+        tests:
+          - not_null
+
+      - name: nombre_finca
+        description: Finca a la que pertenece la vaca.
+        tests:
+          - not_null
+
+      - name: lote
+        description: >
+          Lote de manejo. Define el orden de recorrido en el campo.
+
+      - name: arete
+        description: Número de arete, con el que se identifica la vaca al palparla.
+
+      - name: chip
+        description: Número de chip electrónico, si tiene.
+
+      - name: fecha_ultimo_parto
+        description: >
+          Fecha del último parto. Nula si la vaca entra a la lista por su
+          resultado de palpamiento y no por post-parto.
+
+      - name: dias_desde_ultimo_parto
+        description: Días transcurridos desde el último parto.
+
+      - name: dias_abiertos_aprox
+        description: >
+          Días que la vaca lleva realmente disponible para preñarse:
+          días desde el parto menos el período de espera voluntario. Es una
+          definición operativa propia de la finca, distinta del 'días
+          abiertos' estándar de la industria, que cuenta desde el parto
+          hasta la concepción incluyendo la espera.
+
+      - name: fecha_ultimo_palpamiento
+        description: Fecha del palpamiento más reciente.
+        tests:
+          - not_null
+
+      - name: dias_desde_ultimo_palpamiento
+        description: >
+          Días desde el último palpamiento. Ayuda a priorizar: mientras más
+          tiempo pasó, más urgente revisarla.
+        tests:
+          - not_null
+
+      - name: resultado_ultimo_palpamiento
+        description: >
+          Último diagnóstico conocido, para saber qué se esperaba encontrar
+          antes de palpar de nuevo.
+        tests:
+          - not_null
+
+      - name: fecha_palpamiento_nuevo
+        description: >
+          Columna intencionalmente vacía. Es el espacio para anotar en el
+          campo la fecha del palpamiento que se está realizando. Siempre es
+          nula en el warehouse; no es un error ni un dato faltante.
+
+      - name: resultado_palpamiento_nuevo
+        description: >
+          Columna intencionalmente vacía. Es el espacio para anotar en el
+          campo el resultado del palpamiento que se está realizando.
+          Siempre es nula en el warehouse; no es un error ni un dato
+          faltante.

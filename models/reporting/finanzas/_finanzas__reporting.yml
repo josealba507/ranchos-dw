@@ -15,3 +15,90 @@ models:
       - name: nombre_finca
         tests:
           - not_null
+
+  - name: rpt_metrica_finanzas_mensual
+    description: >
+      Métrica financiera mensual: una fila por finca, mes, tipo de
+      transacción, categoría y clase. Sirve para responder en qué se gasta
+      el dinero, cuánto entra, y cómo evoluciona el resultado neto mes a
+      mes. Los montos de la fuente son siempre positivos; la dirección del
+      dinero la da tipo_transaccion, y por eso existe resultado_neto — usar
+      monto_total sin distinguir el tipo mezcla ingresos con gastos y da un
+      número sin significado. Para el detalle transacción por transacción
+      está rpt_transacciones_financieras_recientes.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: finanzas
+    columns:
+      - name: anio
+        description: Año de las transacciones agrupadas en esta fila.
+        tests:
+          - not_null
+
+      - name: mes
+        description: Mes de las transacciones agrupadas, como número (1-12).
+        tests:
+          - not_null
+
+      - name: mes_nombre
+        description: Nombre del mes en español (Enero, Febrero...).
+
+      - name: estacion
+        description: >
+          Estación del año según el clima local — Seca (diciembre a abril)
+          o Lluviosa (mayo a noviembre). Permite comparar gasto entre
+          épocas del año sin construir rangos de fecha a mano.
+
+      - name: nombre_finca
+        description: Nombre de la finca a la que pertenecen las transacciones.
+        tests:
+          - not_null
+
+      - name: tipo_transaccion
+        description: >
+          Dirección del dinero. 'Entrada' es dinero que ingresa a la finca;
+          'Salida' es un gasto; 'Inversion' es una compra de capital. Para
+          el flujo de caja, Salida e Inversion restan por igual.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Entrada', 'Salida', 'Inversion']
+
+      - name: categoria
+        description: >
+          Categoría de negocio de la transacción, del catálogo editable de
+          finanzas (por ejemplo alimentación, sanidad, personal).
+
+      - name: clase
+        description: >
+          Subdivisión dentro de la categoría, del mismo catálogo. Da el
+          nivel de detalle más fino de la clasificación de gastos.
+
+      - name: cantidad_transacciones
+        description: Cuántas transacciones se agruparon en esta fila.
+        tests:
+          - not_null
+
+      - name: monto_total
+        description: >
+          Suma de los montos SIN signo. Solo es comparable entre filas del
+          mismo tipo_transaccion; para sumar ingresos y gastos juntos hay
+          que usar resultado_neto.
+        tests:
+          - not_null
+
+      - name: resultado_neto
+        description: >
+          Suma de los montos CON signo: positivo si el dinero entró,
+          negativo si salió. Es la columna correcta para calcular el
+          resultado de un mes, o un balance acumulado sumando varios meses.
+        tests:
+          - not_null
+
+      - name: primera_transaccion
+        description: Fecha de la transacción más antigua agrupada en esta fila.
+
+      - name: ultima_transaccion
+        description: Fecha de la transacción más reciente agrupada en esta fila.

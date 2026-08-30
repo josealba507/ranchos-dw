@@ -18,3 +18,82 @@ models:
       - name: nombre_finca
         tests:
           - not_null
+
+  - name: rpt_metrica_existencia_insumo
+    description: >
+      Existencia actual de cada insumo, calculada sumando el ledger
+      completo de movimientos (no leyendo el saldo que cachea la
+      aplicación). Responde cuánto stock hay hoy de cada insumo y cuánto se
+      ha gastado comprándolo. Es una métrica de SALDO, no una serie
+      temporal: no sirve para ver evolución en el tiempo — para eso está
+      rpt_movimientos_insumo_recientes, que tiene grano de movimiento.
+    config:
+      meta:
+        owner: josealba507@gmail.com
+        domain: insumos
+    columns:
+      - name: nombre_finca
+        description: Finca dueña del inventario.
+        tests:
+          - not_null
+
+      - name: id_insumo
+        description: Identificador único del insumo.
+        tests:
+          - not_null
+          - unique
+
+      - name: insumo_nombre
+        description: >
+          Nombre del insumo tal como lo cargó la finca (por ejemplo un
+          alimento, un medicamento o un material).
+        tests:
+          - not_null
+
+      - name: categoria
+        description: >
+          Categoría del insumo según su movimiento más reciente. La
+          categoría puede cambiar en el tiempo, y acá se muestra la vigente.
+
+      - name: unidad
+        description: >
+          Unidad de medida en la que se cuenta la existencia (por ejemplo
+          kilos, litros o unidades). Las cantidades solo son comparables
+          entre insumos que comparten unidad.
+
+      - name: existencia_actual
+        description: >
+          Stock disponible hoy, en la unidad base del insumo. Es la suma de
+          todos los movimientos del ledger, que ya vienen con signo propio
+          (las entradas suman, las mermas restan).
+        tests:
+          - not_null
+
+      - name: cantidad_movimientos
+        description: Cuántos movimientos tiene registrados este insumo.
+        tests:
+          - not_null
+
+      - name: costo_total_comprado
+        description: >
+          Suma de lo gastado en movimientos de tipo compra para este
+          insumo. Es nulo si nunca se registró una compra (por ejemplo, si
+          solo tiene inventario inicial).
+
+      - name: primer_movimiento
+        description: Fecha del movimiento más antiguo registrado.
+
+      - name: ultimo_movimiento
+        description: >
+          Fecha del último movimiento. Un insumo sin movimientos recientes
+          puede indicar que dejó de usarse o que no se está registrando su
+          consumo.
+
+      - name: existencia_negativa
+        description: >
+          Verdadero si la existencia calculada quedó por debajo de cero,
+          lo cual es físicamente imposible y delata un movimiento mal
+          capturado (una merma mayor al stock real, o una compra que nunca
+          se registró). Se expone como señal en vez de ocultarse.
+        tests:
+          - not_null
