@@ -1,7 +1,7 @@
 # Disparado por el Cloud Build trigger conectado a GitHub (push a `main`)
 # — ver docs/fase_orquestacion_dbt.md. Reconstruye la imagen del Cloud Run
 # Job de dbt y despliega la revisión nueva, para que la próxima corrida
-# programada (3x/día, vía infra/workflows/trigger_el_transfer.yaml) use el
+# programada (1x/día, vía infra/workflows/trigger_el_transfer.yaml) use el
 # código recién mergeado sin ningún paso manual.
 #
 # _AR_REPO/_REGION/_RUN_JOB/_RUN_SA sustituidos por los valores reales al

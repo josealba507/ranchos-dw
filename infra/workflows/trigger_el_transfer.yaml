@@ -23,8 +23,10 @@
 # payload de retorno, así que "sync nunca sincronizó" tiene que
 # manifestarse como una ejecución fallida para que la alarma la vea.
 #
-# Disparado por Cloud Scheduler 3x/día (8am/1pm/8pm hora de Panamá) — ver
-# el job "dw-el-transfer-3x-diario" en Cloud Scheduler. Sin cambios acá.
+# Disparado por Cloud Scheduler 1x/día (10pm hora de Panamá) — ver el job
+# "dw-el-transfer-diario" en Cloud Scheduler. Corre de noche a propósito:
+# con la captura del día ya terminada, el test de reconciliación deja de
+# competir contra escrituras en curso. Sin cambios acá.
 #
 # Deploy:
 #   gcloud workflows deploy dw-trigger-el-transfer \

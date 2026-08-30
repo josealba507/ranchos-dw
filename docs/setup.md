@@ -142,7 +142,7 @@ paso dentro del Cloud Build existente (`infra/docker/cloudbuild.yaml`,
 ver `docs/fase_orquestacion_dbt.md`) — que cada push a `main` regenere y
 republique el catálogo solo, en vez de un paso manual. Se dejó fuera de
 esta ronda para no acoplar la publicación de documentación (best-effort,
-no crítica) al pipeline de producción (dbt build 3x/día, sí crítico).
+no crítica) al pipeline de producción (dbt build 1x/día, sí crítico).
 
 ## VSCode
 
@@ -158,7 +158,7 @@ El target `dev` (default) escribe en datasets con prefijo `dev_`
 (`dev_stg_ranchos`, `dev_marts_ranchos`) — nunca sobre los datasets
 "reales" que consumen los reportes/pipelines. El target `prod`
 (`dbt build -t prod`) escribe sin prefijo, y es el que realmente corre
-3 veces al día dentro del Cloud Run Job programado (ver
+1 vez al día dentro del Cloud Run Job programado (ver
 "Pipeline EL + orquestación" abajo) — ya no es un target reservado para
 el futuro, está en uso activo. Ver `macros/generate_schema_name.sql`.
 
@@ -167,12 +167,12 @@ el futuro, está en uso activo. Ver `macros/generate_schema_name.sql`.
 El dataset `ranchos` (26 tablas `tb_dim_*`/`tb_fact_*`) existe en
 `alba-analytics-ganaderia`, como réplica del dataset operacional real —
 migración histórica completa hecha vía `bq cp` cross-project, con
-actualización continua 3 veces al día (8am/1pm/8pm hora de Panamá) vía
+actualización continua 1 vez al día (10pm hora de Panamá) vía
 Cloud Scheduler + Cloud Workflows + BigQuery Data Transfer Service.
 `dbt run`/`dbt test` corren contra datos reales y actualizados. Detalle
 completo en `CLAUDE.md`, sección "Estado actual del proyecto".
 
-## Pipeline EL + orquestación (actualización de la réplica, 3x/día)
+## Pipeline EL + orquestación (actualización de la réplica, 1x/día)
 
 ```
 infra/workflows/trigger_el_transfer.yaml   Workflow: dispara la sync, espera a que
