@@ -104,6 +104,15 @@ ver `docs/incidente_dbt_scratch_prod_y_timeout.md`.
 Ignora las vistas `VS_*` (legacy pre-dbt) por defecto; `--incluir-vistas`
 las suma a la comparación.
 
+## Acceso de BI
+
+La conexión de Looker Studio usa una service account dedicada con lectura
+**solo** sobre `rpt_ranchos` (L4) — nunca sobre marts, staging ni las
+tablas fuente. Los comandos para crearla, el paso de dataset autorizado
+que hace que las vistas de L4 puedan leer L3 sin exponer L3, y la
+verificación de que el permiso quedó realmente acotado están en
+[`docs/bi_looker_studio.md`](bi_looker_studio.md).
+
 ## Catálogo de datos (dbt docs), publicado en GitHub Pages
 
 El catálogo completo (columnas, descripciones, tests) y el grafo de
