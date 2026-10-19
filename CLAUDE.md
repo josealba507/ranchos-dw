@@ -368,19 +368,22 @@ el string suelto en el SQL. Si un modelo necesita el histórico completo
       `Web-App-Online`, montos reales) se investigó a fondo antes de
       confirmarlo como dato de prueba con el usuario, no producción real
       sin sincronizar.
-    - **Hallazgo real más importante de esta ronda —
-      `macros/normalizar_mojibake.sql`:** 192/234 filas de
-      `tb_fact_palpamientos.resultado` y 53/128 de
-      `tb_fact_pesaje_leche.ordeno` en producción real tienen UTF-8 mal
+    - **Hallazgo real más importante de esta ronda — mojibake en
+      `tb_fact_palpamientos.resultado` y `tb_fact_pesaje_leche.ordeno`
+      (RESUELTO en el origen, octubre 2026):** 192/234 filas de
+      `resultado` y 53/128 de `ordeno` en producción real tenían UTF-8 mal
       re-codificado ("PreÃ±ada" en vez de "Preñada", "MaÃ±ana" en vez de
-      "Mañana") — probablemente del backfill histórico inicial desde
-      Excel (el script de backfill histórico de `ranchos--app`). Sin
-      corregirlo, cualquier agregación por esas columnas trataba el
-      mismo valor de negocio como 2 distintos. Normalizado en staging
-      (sin tocar `ranchos-7c313`), verificado con matemática exacta
-      contra BigQuery directo. **Pendiente de decidir con el usuario:**
-      si vale la pena corregir esto también en el origen
-      (`ranchos-7c313`), o si normalizar en el warehouse es suficiente.
+      "Mañana"), así que cualquier agregación trataba el mismo valor de
+      negocio como 2 distintos. Se normalizó primero en staging con una
+      macro (`macros/normalizar_mojibake.sql`, ya eliminada). La causa
+      real NO era el backfill hacia Firestore (Firestore nunca tuvo el
+      problema): fue `bq query` leyendo el SQL por stdin en Windows, en
+      las reconciliaciones históricas. Se corrigieron 486 filas en 7
+      columnas de 4 tablas de `ranchos-7c313` (ver "Reparación del DW" en
+      el CLAUDE.md de `ranchos--app`, PR #158) y la macro se quitó:
+      verificado sobre la copia que alimenta a dbt que su expresión ya no
+      cambiaba ninguna fila (0 de 292 en `resultado`, 0 de 128 en
+      `ordeno`).
     - **Dominio Hato — 2 dimensiones historizadas SCD2**
       (`snapshot_animal`/`snapshot_lote`), tal como pide explícitamente
       la Fase 4 del documento para "Animal" y "Lote / hato".
@@ -620,10 +623,10 @@ doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
    clustering explícitos en las 10 fact tables de `marts` (PR #20).
    Falta evaluar vistas materializadas, policy tags sobre columnas de
    costo, y vistas autorizadas para L4.
-4. **Decisión pendiente, no bloqueante:** el mojibake encontrado en
-   `resultado`/`ordeno` (ver "Estado actual") ya se normaliza en el
-   warehouse — falta decidir si además vale la pena corregirlo en el
-   origen (`ranchos-7c313`), o si con la normalización acá alcanza.
+4. ~~Decisión pendiente: corregir el mojibake de `resultado`/`ordeno` en
+   el origen o normalizarlo en el warehouse~~ — **resuelta (octubre 2026):**
+   se corrigió en el origen (`ranchos-7c313`) y la macro de staging se
+   eliminó. Ver "Estado actual".
 5. **Artefactos de Elementary que nadie consume, no bloqueante.** El
    pipeline sigue escribiendo `test_result_rows`/`dbt_run_results` para
    el reporte UI de Elementary, pero el CLI `edr` que lo genera no está

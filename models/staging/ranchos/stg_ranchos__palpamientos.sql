@@ -7,11 +7,10 @@
 -- sensibilidad financiera (ver CLAUDE.md de ese repo), se conserva tal
 -- cual llega.
 --
--- resultado normalizado vía macros/normalizar_mojibake.sql: 192 de 234
--- filas reales llegan con UTF-8 mal re-codificado ("PreÃ±ada" en vez de
--- "Preñada") — sin esto, accepted_values fallaba y cualquier agregación
--- por resultado hubiera contado "Preñada"/"PreÃ±ada" como 2 valores
--- distintos.
+-- resultado pasa tal cual llega. Hasta octubre de 2026 se normalizaba acá
+-- el UTF-8 mal re-codificado ("PreÃ±ada" en vez de "Preñada") con una
+-- macro; ese texto se corrigió en el origen (ranchos-7c313, ver "Reparación
+-- del DW" en el CLAUDE.md de ranchos--app) y la macro se eliminó.
 with source as (
 
     select * from {{ source('ranchos', 'tb_fact_palpamientos') }}
@@ -25,7 +24,7 @@ renamed as (
         fecha_palpamiento,
         id_animal,
         arete_animal,
-        {{ normalizar_mojibake('resultado') }} as resultado,
+        resultado,
         dias_gestacion,
         fecha_parto_esperada,
         estado_gestacion,
