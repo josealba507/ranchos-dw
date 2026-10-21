@@ -7,9 +7,10 @@
 --
 -- Filtro de vigencia obligatorio (sección 3): fila 'Activo' es la vigente.
 --
--- ordeno normalizado vía macros/normalizar_mojibake.sql: 53 de 128 filas
--- reales llegan con UTF-8 mal re-codificado ("MaÃ±ana" en vez de
--- "Mañana") — mismo hallazgo que en stg_ranchos__palpamientos.sql.
+-- ordeno pasa tal cual llega. Hasta octubre de 2026 se normalizaba acá el
+-- UTF-8 mal re-codificado ("MaÃ±ana" en vez de "Mañana") con una macro;
+-- ese texto se corrigió en el origen (ranchos-7c313) y la macro se eliminó
+-- — mismo caso que en stg_ranchos__palpamientos.sql.
 with source as (
 
     select * from {{ source('ranchos', 'tb_fact_pesaje_leche') }}
@@ -21,7 +22,7 @@ renamed as (
     select
         id_registro,
         fecha_pesaje,
-        {{ normalizar_mojibake('ordeno') }} as ordeno,
+        ordeno,
         id_animal,
         arete_animal,
         litros,
