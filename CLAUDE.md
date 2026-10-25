@@ -568,6 +568,18 @@ doc dedicado (`docs/fase*.md`); acá solo el resumen + el porqué.
      `tests/exactitud_existencia_insumo_vs_ledger.sql`, primera
      instancia real de esta dimensión (antes aspiracional en
      `dama_governance.md`).
+   - **Consistencia del versionado** (octubre 2026):
+     `tests/sin_huerfanos_versionado_fact.sql` falla si alguna de las 9
+     tablas fact versionadas tiene un "huérfano" (`Corregido` sin
+     `Activo`/`Anulado`). Lee el DW en vivo (`ranchos_operacional`), no la
+     réplica raw; no depende de modelos, así que si falla no omite nada
+     downstream — el Job termina en error y las filas quedan en
+     `metadata_ranchos`. Es la red de seguridad del incidente de los 33
+     huérfanos (ver CLAUDE.md de ranchos--app, "Reparación del DW"):
+     reparar con `scripts/reparar-huerfanos-dw.js` de ese repo. Un
+     falso positivo es posible solo si una corrección se está aplicando
+     en el instante exacto del test, y se resuelve solo en la corrida
+     siguiente.
    - **Consistency** ya estaba cubierta desde que se construyó cada
      dominio (tests `relationships` nativos) — no requirió trabajo
      nuevo. Con esto, ninguna fila de la tabla de dimensiones DAMA de
